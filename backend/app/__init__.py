@@ -1,0 +1,1 @@
+# 관심사 분리(Separtation of Concerns) 원칙에 따라 DB 연결, 비즈니스 로직, API 엔드포인트를 각각 다른 레이어로 분리
