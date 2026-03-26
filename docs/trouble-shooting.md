@@ -19,3 +19,15 @@
 - **원인**: 코드 작성 실수
 - **해결**: 인스턴스는 한 번만 선언하고 .add_middleware()로 설정 추가
 - **교훈**: 두 번째 선언이 첫 번째를 덮어씀. 인스턴스는 항상 단일 선언
+
+### 4. Supabase DB 연결 실패 (Direct connection → Session pooler)
+- **상황**: /health/db 접속 시 500 에러
+- **에러1**: `No module named 'psycopg2'`
+  - 원인: DATABASE_URL이 `postgresql://` 로 시작해서 psycopg2 드라이버를 찾음
+  - 해결: `postgresql+asyncpg://` 로 변경
+- **에러2**: `No module named 'greenlet'`
+  - 원인: SQLAlchemy async 내부 의존성 누락
+  - 해결: `pip install greenlet`
+- **에러3**: `socket.gaierror: nodename nor servname provided`
+  - 원인: Direct connection은 IPv6 전용 → 로컬 Mac(IPv4) 환경에서 접속 불가
+  - 해결: Supabase Connect → Session pooler URL(포트 6543)로 변경

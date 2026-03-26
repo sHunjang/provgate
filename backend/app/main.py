@@ -2,6 +2,12 @@
 # 요청을 받고 응답을 돌려주는 모든 흐름의 시작점
 from fastapi import FastAPI
 
+# DB 연결 테스트용 임포트 추가
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from fastapi import Depends
+
 # CORS 미들웨어: 다른 도메인에서 오는 요청을 허용하는 설정
 # 없으면 프론트엔드(localhost:3000)에서 백엔드(localhost:8000)로
 # 요청할 때 브라우저가 보안 정책으로 차단해버림
@@ -46,3 +52,14 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "app": settings.APP_NAME}
+
+
+# DB 연결 테스트 엔드포인드
+# Depends(get_db): get_db()를 자동으로 실행해서 세션을 주입해줌
+# 이게 바로 의존성 주입 패턴임 - 엔드포인트가 직접 세션을 만들지 않아도 됨
+@app.get("/health/db")
+async def health_check_db(db: AsyncSession = Depends(get_db)):
+
+    # text(): 순수 SQL 문자열을 SQLAlchemy가 실행할 수 있게 감싸줌
+    result = await db.execute(text("SELECT 1"))
+    return {"status": "ok", "db": "connected"}
