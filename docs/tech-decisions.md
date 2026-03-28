@@ -49,3 +49,24 @@
   - 게이트 문제: 800
   - 유사 문제: 1500
 - 응답 전처리: ```json 코드 블록 마커 제거 후 파싱
+
+## Frontend: Next.js 14 App Router
+- **선택 이유**
+  - 파일 시스템 기반 라우팅으로 폴더 구조 = URL 구조
+  - 서버/클라이언트 컴포넌트 분리로 번들 크기 최적화
+  - "use client" 선언으로 명시적 컴포넌트 구분
+- **라우팅 구조**
+  - / → 수준 선택 UI
+  - /onboarding/quiz → 진단 퀴즈
+  - /onboarding/result → 결과 + 로드맵
+
+## 상태 관리
+- 별도 상태관리 라이브러리 미사용 (Redux, Zustand 등)
+- 이유: 프로토타입 규모에서 useState로 충분
+- 페이지 간 데이터 전달: URL 쿼리 파라미터 활용
+  (answers, correctAnswers를 JSON.stringify로 직렬화)
+
+## React Strict Mode
+- 개발 환경에서 reactStrictMode: false로 설정
+- 이유: useEffect 2번 실행으로 Claude API 중복 호출 방지
+- 배포 환경에서는 정상 동작하므로 기능상 문제 없음

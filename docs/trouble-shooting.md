@@ -43,3 +43,16 @@
 - **원인**: max_token=1000으로 설정했을 때 한글 5문항 응답이 중간에 잘림
   한글은 영어보다 토큰 소비가 2-3배 많음
 - **해결**: max_token=2000으로 증가
+
+### 7. Array.fill() 타입 에러
+- **상황**: data.questions.length.fill is not a function
+- **원인**: new Array(length).fill()이 TypeScript 환경에서 미동작
+- **해결**: Array.from({ length }, () => -1)으로 변경
+- **교훈**: TypeScript에서 배열 초기화는 Array.from() 사용 권장
+
+### 8. React Strict Mode로 인한 useEffect 2번 실행
+- **상황**: 퀴즈 페이지 진입 시 문제가 혼자서 한 번씩 바뀜
+- **원인**: Next.js 14 개발 환경에서 Strict Mode가 기본으로 켜져 있어
+  useEffect가 의도적으로 2번 실행되어 API가 2번 호출됨
+- **해결**: next.config.mjs에서 reactStrictMode: false로 설정
+- **교훈**: Strict Mode는 개발 환경에서만 동작. 배포 환경에서는 정상 동작

@@ -65,3 +65,33 @@ startswith/endswith로 마커를 감지하고 슬라이싱으로 제거하는
 전처리 로직을 추가했습니다. 이후 json.loads()로 파싱했습니다.
 한글 응답은 토큰 소비가 영어보다 2~3배 많아서
 max_tokens를 넉넉하게 2000으로 설정했습니다.
+
+## Q. Next.js App Router와 Pages Router의 차이가 뭔가요?
+Pages Router는 next/router를 사용하고 pages/ 폴더 기반이지만,
+App Router는 next/navigation을 사용하고 app/ 폴더 기반입니다.
+App Router는 서버 컴포넌트를 기본으로 지원하고,
+"use client" 선언으로 클라이언트 컴포넌트를 명시적으로 구분합니다.
+이 프로젝트는 최신 방식인 App Router를 채택했습니다.
+
+## Q. 서버 컴포넌트와 클라이언트 컴포넌트의 차이가 뭔가요?
+서버 컴포넌트는 Next.js 14의 기본값으로 서버에서 렌더링됩니다.
+DB 접근, API 호출에 유리하지만 useState, useRouter 같은
+React Hook을 사용할 수 없습니다.
+클라이언트 컴포넌트는 파일 상단에 "use client"를 선언하면 되고,
+브라우저에서 실행되어 React Hook 사용이 가능합니다.
+이 프로젝트에서는 퀴즈, 결과 페이지처럼 상태 관리가 필요한
+컴포넌트에 "use client"를 적용했습니다.
+
+## Q. useEffect를 어떻게 활용했나요?
+퀴즈 페이지와 결과 페이지에서 컴포넌트 마운트 시
+Claude API를 호출하는 용도로 사용했습니다.
+두 번째 인자로 의존성 배열을 전달해서
+level이 바뀔 때만 재실행되도록 제어했습니다.
+개발 환경에서 React Strict Mode로 인해 2번 실행되는 현상을
+경험했고, 이는 배포 환경에서는 발생하지 않습니다.
+
+## Q. TypeScript를 사용하면서 어떤 이점이 있었나요?
+Question, OnboardingResult 같은 타입을 명시적으로 정의해서
+API 응답 데이터 구조를 코드에서 바로 확인할 수 있었습니다.
+또한 result가 null일 수 있다는 경고처럼 런타임 에러를
+컴파일 타임에 미리 발견할 수 있어서 안정성이 높아졌습니다.
