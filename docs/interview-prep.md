@@ -46,3 +46,22 @@ Next.js 13부터 도입된 App Router는 Pages Router 대비
 NEXT_PUBLIC_ 접두사가 붙은 변수만 브라우저에 노출되고 나머지는
 서버에서만 접근 가능해서 API 키 같은 민감정보를 보호할 수 있습니다.
 두 파일 모두 .gitingore에 추가해서 Git에 올라가지 않도록 했습니다.
+
+## Q. 온보딩 수준 확정 로직을 어떻게 설계했나요?
+사용자가 선택한 수준(declared_level)을 기준으로
+퀴즈 정답 비율에 따라 confirmed_level을 조정했습니다.
+80% 이상이면 한 단계 상향, 40~80%면 유지, 40% 미만이면 한 단계 하향합니다.
+level_order 리스트와 인덱스를 활용해서 수준 간 이동을 처리했고,
+min/max로 경계값(beginner 이하, advanced 이상)을 방지했습니다.
+
+## Q. DB upsert를 어떻게 처리했나요?
+PostgreSQL의 ON CONFLICT DO UPDATE 구문을 사용했습니다.
+같은 이메일로 온보딩을 다시 하면 INSERT 대신 UPDATE가 실행됩니다.
+이렇게 하면 중복 데이터 없이 항상 최신 온보딩 결과를 유지할 수 있습니다.
+
+## Q. Claude API 응답을 어떻게 파싱했나요?
+Claude가 JSON 앞뒤에 ```json 코드 블록을 붙이는 경우가 있어서
+startswith/endswith로 마커를 감지하고 슬라이싱으로 제거하는
+전처리 로직을 추가했습니다. 이후 json.loads()로 파싱했습니다.
+한글 응답은 토큰 소비가 영어보다 2~3배 많아서
+max_tokens를 넉넉하게 2000으로 설정했습니다.
