@@ -1,6 +1,13 @@
 # FastAPI의 라우터 기능 - main.py의 app에 붙일 미니 앱 같은 개념
 # 기능별로 라우터를 분리하면 main.py가 복잡해지지 않음
-from fastapi import APIRouter, HTTPException
+# APIRouter: 라우터 생성
+# HTTPException: HTTP 에러 반환 (400, 500 등)
+# Depends: 의존성 주입 - get_db()를 자동으로 실행해서 세션을 주입해줌
+from fastapi import APIRouter, HTTPException, Depends
+
+# AsyncSession: 비동기 DB 세션 타입
+# 함수 파라미터에 타입 힌트로 사용 (db: AsyncSession)
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Pydantic: 요청/응답 데이터의 타입과 형식을 검증해주는 라이브러리
 # BaseModel을 상속하면 자동으로 타입 체크 + 에러 메세지 생성
@@ -9,11 +16,16 @@ from pydantic import BaseModel
 # anthropic: Claude API 공식 Python 라이브러리
 import anthropic
 
+# JSON 파싱
+import json
+
 # 환경변수에서 API 키 가져오기
 from app.core.config import settings
 
-# JSON 파싱
-import json
+# get_db(): DB 세션을 생성하고 반환하는 제너레이터 함수
+# Depends(get_db)로 등록하면 요청마다 자동으로 세션을 열고 닫아줌
+from app.core.database import get_db
+
 
 # 이 라우터의 모든 엔드포인트는 /api/onboarding 으로 시작함.
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
@@ -147,4 +159,129 @@ async def generate_quiz(request: QuizGenerateRequest):
     return {
         "level": request.level,
         "questions": quiz_data["questions"]
+    }
+
+
+# 온보딩 완료 요청 데이터 형식
+class OnboardingCompleteRequest(BaseModel):
+
+    # 사용자 이메일 (임시 식별자 - 나중에 인증 붙이면 교체 예정)
+    email: str
+
+    # 사용자 처음 선택 수준
+    declared_level: str
+
+    # 퀴즈 답안 리스트 - 인덱스 기반 (0~3)
+    # 예: [0, 1, 2, 3, 0] -> 5문항 답안
+    answers: list[int]
+
+    # 정답 리스트 - 체점용
+    correct_answers: list[int]
+
+
+# 온보딩 완료 엔드포인트
+# POST /api/onboarding/complete
+@router.post("/complete")
+async def complete_onboarding(
+    request: OnboardingCompleteRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    
+    # 점수 계산
+    # zip(): 두 리스트를 쌍으로 묶어서 순회
+    # 예: zip([0,1,2], [0,2,2]) -> (0,0), (1,2), (2,2)
+    score = sum(
+        1 for user_ans, correct_ans
+        in zip(request.answers, request.correct_answers)
+        if user_ans == correct_ans
+    )
+
+
+    # 5 문항 기준 점수로 confirmed_level 확정
+    # 딕셔너리 +조건으로 O(1) 분기 처리
+    total = len(request.correct_answers)
+    ratio = score / total   # 정답 비율 (0.0 ~ 1.0)
+
+
+    # 선택한 수준 기준으로 실제 수준 조정
+    # 80% 이상 -> 선택 수준 유지 또는 한 단계 상향
+    # 40% 미만 -> 한 단계 하양
+    level_order = ["beginner", "intermediate", "advanced"]
+    declared_idx = level_order.index(request.declared_level)
+
+    if ratio >= 0.8:
+        # 80% 이상 맞추면 한 단계 올려줌 (advanced면 유지)
+        confirmed_idx = min(declared_idx + 1, 2)
+    
+    elif ratio >= 0.4:
+        # 40 ~ 80%면 선택한 수준 그대로
+        confirmed_idx = declared_idx
+    
+    else:
+        # 40% 미만이면 한 단계 내려감 (beginne면 유지)
+        confirmed_idx = max(declared_idx - 1, 0)
+    
+    confirmed_level = level_order[confirmed_idx]
+
+
+    # DB에 사용자 저장 (없으면 생성, 있으면 업데이트)
+    # 순수 SQL로 처리 (ORM 모델 추가 예정)
+    from sqlalchemy import text
+    await db.execute(
+        text("""
+            INSERT INTO users (email, declared_level, confirmed_level, onboarding_score)
+            VALUES (:email, :declared_level, :confirmed_level, :score)
+            ON CONFLICT (email)
+            DO UPDATE SET
+                declared_level = :declared_level,
+                confirmed_level = :confirmed_level,
+                onboarding_score = :score
+        """),
+        {
+            "email": request.email,
+            "declared_level": request.declared_level,
+            "confirmed_level": confirmed_level,
+            "score": score
+        }
+    )
+
+    await db.commit()
+
+    
+    # 수준별 학습 로드맵 반환
+    # 딕셔너리로 O(1) 조회
+    roadmap = {
+        "beginner": [
+            "변수와 자료형",
+            "조건문 (if/elif/else)",
+            "반복문 (for/while)",
+            "함수 기초",
+            "리스트와 딕셔너리"
+        ],
+
+        "intermediate": [
+            "함수 심화 (람다, 클로저)",
+            "클래스와 객체지향",
+            "파일 입출력",
+            "예외 처리",
+            "모듈과 패키지"
+        ],
+
+        "advanced": [
+            "알고리즘과 자료구조",
+            "재귀함수",
+            "데코레이터",
+            "비동기 프로그래밍",
+            "디자인 패턴"
+        ]
+    }
+
+    return {
+        "email": request.email,
+        "declared_level": request.declared_level,
+        "confirmed_level": confirmed_level,
+        "score": score,
+        "total": total,
+        "ratio": round(ratio * 100, 1),     # 퍼센트로 변환
+        "roadmap": roadmap[confirmed_level]
     }
