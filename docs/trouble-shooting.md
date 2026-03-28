@@ -31,3 +31,15 @@
 - **에러3**: `socket.gaierror: nodename nor servname provided`
   - 원인: Direct connection은 IPv6 전용 → 로컬 Mac(IPv4) 환경에서 접속 불가
   - 해결: Supabase Connect → Session pooler URL(포트 6543)로 변경
+
+### 5. Claude API JSON 파싱 에러 - 코드 블록 마커
+- **상황**: /api/onboarding/quiz/generate 호출 시 500에러
+- **원인**: Claude가 JSON 앞뒤에 ```json 코드 블록을 붙여서 응답
+  json.loads()는 순수 JSON만 파싱 가능해서 실패
+- **해결**: 응답 텍스트에서 ```, 마커를 제거하는 전처리 로직 추가
+
+### 6. Claude API 응답 중간에 잘림
+- **상황**: JSON 파싱 에러 지속 발생
+- **원인**: max_token=1000으로 설정했을 때 한글 5문항 응답이 중간에 잘림
+  한글은 영어보다 토큰 소비가 2-3배 많음
+- **해결**: max_token=2000으로 증가
