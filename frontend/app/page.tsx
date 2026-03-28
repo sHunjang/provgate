@@ -1,101 +1,123 @@
-import Image from "next/image";
+"use client";
+
+// useState: 컴포넌트 안에서 상태(데이터)를 관리하는 React Hook
+// 상태가 바뀌면 컴포넌트가 자동으로 다시 렌더링됨
+import { useState } from "react";
+
+
+// Next.js의 라우터 - 페이지 이동에 사용
+// Link 컴포넌트 대신 useRouter를 쓰는 이유:
+// 버튼 클릭 후 데이터를 가지고 이동해야 하기 때문
+import { useRouter } from "next/navigation";
+
+
+// 수준 타입 정의 - TypeScript의 유니온 타입
+// 이 3가지 문자열만 허용, 오타 방지
+type level = "beginner" | "intermediate" | "advanced";
+
+
+// 수준 카드 데이터 - 배열로 관리하면 UI 추가/수정이 쉬움
+const levels = [
+  {
+    id: "beginner" as level,
+    title: "입문자",
+    description: "파이썬을 처음 배우거나\n기초 문법을 막 익힌 단계",
+    icon: "🌱",
+    color: "border-green-400 hover:bg-green-50",
+    selectedColor: "border-green-400 bg-green-50",
+  },
+  {
+    id: "intermediate" as level,
+      title: "초급자",
+    description: "변수, 조건문, 반복문을 알고\n함수와 리스트를 다룰 수 있는 단계",
+    icon: "🔥",
+    color: "border-yellow-400 hover:bg-yellow-50",
+    selectedColor: "border-yellow-400 bg-yellow-50",
+  },
+  {
+    id: "advanced" as level,
+    title: "중급자",
+    description: "클래스, 재귀, 알고리즘 기초를 알고\n실무 경험이 있는 단계",
+    icon: "⚡️",
+    color: "border-blue-400 hover:bg-blue-50",
+    selectedColor: "border-blue-400 bg-blue-50",
+  }
+];
+
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  //선택한 수준 상태 - null 이면 아무것도 선택 안 된 상태
+  const [selectedLevel, setSelectedLevel] = useState<level | null>(null);
+
+  // Next.js 라우터 인스턴스
+  const router = useRouter();
+
+  // 다음 단계로 이동하는 함수
+  // 선택한 수준을 URL 쿼리 파라미터로 전달
+  // ex: /onboarding/quiz?level=beginner
+  const handleNext = () => {
+    if (!selectedLevel) return;
+
+    router.push(`/onboarding/quiz?level=${selectedLevel}`);
+  };
+
+  return (
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+      {/* 헤더 */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          ThinkCode
+        </h1>
+        <p className="text-lg text-gray-600">
+          AI 힌트를 써도 이해를 강제하는 코딩 학습 플랫폼
+        </p>
+      </div>
+
+      {/* 수준 선택 섹션 */}
+      <div className="w-full max-w-3xl">
+        <h2 className="text-xl font-semibold text-gray-800 mb-6 text-center">
+          현재 본인의 수준을 선택해주세요
+        </h2>
+
+        {/* 수준 카드 3개 - map()으로 배열을 JSX로 변환 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {levels.map((level) => (
+            <button
+              key={level.id}
+              // 선택 여부에 따라 스타일 동적 변경
+              className={`p-6 rounded-xl border-2 transition-all cursor-pointer text-left
+                ${selectedLevel === level.id
+                  ? level.selectedColor  // 선택됨
+                  : `border-gray-200 bg-white ${level.color}`  // 미선택
+                }`}
+              onClick={() => setSelectedLevel(level.id)}
+            >
+              <div className="text-4xl mb-3">{level.icon}</div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                {level.title}
+              </h3>
+              {/* whitespace-pre-line: \n을 줄바꿈으로 표시 */}
+              <p className="text-sm text-gray-600 whitespace-pre-line">
+                {level.description}
+              </p>
+            </button>
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        {/* 다음 버튼 - 수준 선택 전에는 비활성화 */}
+        <button
+          onClick={handleNext}
+          disabled={!selectedLevel}
+          className={`w-full py-4 rounded-xl font-semibold text-lg transition-all
+            ${selectedLevel
+              ? "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
-}
+          진단 퀴즈 시작하기 →
+        </button>
+      </div>
+    </main>
+  )
+};
