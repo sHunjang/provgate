@@ -56,7 +56,7 @@ async def generate_quiz(request: QuizGenerateRequest):
     # 소크라테스 힌트가 아닌 진단 퀴즈용 프롬프트
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1000,
+        max_tokens=2000,
         system="당신은 파이썬 코딩 교육 전문가입니다. 반드시 유효한 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 출력하지 마세요.",
         messages=[
             {
@@ -110,6 +110,31 @@ async def generate_quiz(request: QuizGenerateRequest):
     # Claude 응답에서 텍스트 추출
     response_text = message.content[0].text
 
+    # # 디버깅용 - 실제 응답 확인
+    # print("=== Claude 응답 ===")
+    # print(repr(response_text))
+    # print("==================")
+
+    # Claude가 ```json ... ``` 형식으로 응답할 때 코드 블록 제거
+    # strip(): 앞뒤 공백/줄바꿈 제거
+    # replace(): ```json```과 ```제거
+    
+    # print("=== Claude 응답 ===")
+    # print(repr(response_text[:100]))    # 앞 100 글자만 확인
+    # print("=== 전처리 후 ===")
+    response_text = response_text.strip()
+
+    if response_text.startswith("```json"):
+        response_text = response_text[7:]   # ```json 제거 (7글자)
+    if response_text.startswith("```"):
+        response_text = response_text[3:]   # ``` 제거 (3글자)
+    if response_text.endswith("```"):
+        response_text = response_text[:-3]  # 끝의 ``` 제거
+    
+    response_text = response_text.strip()
+
+    # print(repr(response_text))    # 전처리 후
+    # print("==================")
 
     try:
         quiz_data = json.loads(response_text)

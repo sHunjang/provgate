@@ -16,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # settings(core/config.py) 가져옴
 from app.core.config import settings
 
+# Onboarding 라우터 임포트
+from app.api.routes.onboarding import router as onboarding_router
 
 # FastAPI 인스턴스 생성
 # title, version은 자동 생성되는 API 문서(/docs)에 표시됨
@@ -44,6 +46,10 @@ app.add_middleware(
     allow_methods=["*"],      # GET, POST, PUT, DELETE 모두 허용
     allow_headers=["*"],      # 모든 헤더 허용
 )
+
+# 라우터 등록
+# prefix 없이 등록하는 이유: 라우터 자체에 /api/onboarding prefix가 이미 있음
+app.include_router(onboarding_router)
 
 
 # 헬스체크 엔드포인트
