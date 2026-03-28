@@ -12,6 +12,8 @@ import anthropic
 # 환경변수에서 API 키 가져오기
 from app.core.config import settings
 
+# JSON 파싱
+import json
 
 # 이 라우터의 모든 엔드포인트는 /api/onboarding 으로 시작함.
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
@@ -54,32 +56,52 @@ async def generate_quiz(request: QuizGenerateRequest):
     # 소크라테스 힌트가 아닌 진단 퀴즈용 프롬프트
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1500,
+        max_tokens=1000,
+        system="당신은 파이썬 코딩 교육 전문가입니다. 반드시 유효한 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 출력하지 마세요.",
         messages=[
             {
                 "role": "user",
-                "content": f"""당신은 파이썬 코딩 교육 전문가입니다.
-다음 수준의 학습자를 위한 진단 퀴즈 5문항을 생성해주세요.
-학습자 수준: {request.level}
-수준 설명: {level_desc}
+                "content": f"""
+학습자의 실제 이해도를 평가하기 위한 진단 퀴즈를 생성하세요.
 
-요구사항:
-1. 각 문항은 객관식 4지선다
-2. 실제 이해도를 측정할 수 있는 문제 (단순 암기 말고)
-3. 난이도는 아래 해당 수준에 맞게
+[학습자 정보]
+- 수준: {request.level}
+- 설명: {level_desc}
 
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요:
+[문제 생성 규칙]
+1. 총 5문항 생성
+2. 각 문항은 객관식 4지선다
+3. 단순 암기가 아닌 코드 이해/추론 기반 문제
+4. 각 문항은 서로 다른 개념을 측정해야 함
+5. 최소 2문항은 코드 실행 결과를 묻는 문제 포함
+6. 오답은 실제 학습자가 헷갈릴 수 있는 오개념 기반으로 작성
+7. 정답은 반드시 하나만 존재해야 함
+8. 문제는 모호하지 않도록 충분한 정보를 포함
+
+[난이도 기준]
+- 최소 1단계 이상의 사고(코드 추론 등)가 필요해야 함
+- 수준에 맞는 적절한 난이도 유지
+
+[출력 형식 규칙]
+- 반드시 유효한 JSON만 출력
+- JSON 외 텍스트 절대 금지
+- 모든 문자열은 큰따옴표 사용
+- trailing comma 금지
+
+[출력 JSON 스키마]
 {{
-    "question": [
+    "questions": [
         {{
             "id": 1,
             "question": "문제 내용",
             "options": ["A. 보기1", "B. 보기2", "C. 보기3", "D. 보기4"],
-            "answer": "A",
-            "concept": "측정하는 개념 (예: 반복문)"
+            "answer": 0,
+            "concept": "측정 개념",
+            "explanation": "정답 이유"
         }}
     ]
-}}"""
+}}
+"""
             }
         ]
     )
@@ -89,8 +111,6 @@ async def generate_quiz(request: QuizGenerateRequest):
     response_text = message.content[0].text
 
 
-    # JSON 파싱
-    import json
     try:
         quiz_data = json.loads(response_text)
     except json.JSONDecodeError:
