@@ -72,3 +72,11 @@
   사용하는 곳도 전부 globals로 변경
 - **교훈**: TypeScript 타입 정의 오타는 런타임까지 발견이 늦어질 수 있음
   API 공식 문서에서 정확한 속성명 확인 필요
+
+### 11. ON CONFLICT 에러 - UNIQUE 제약조건 없음
+- **상황**: submissions 테이블 upsert 시 500 에러
+- **원인**: ON CONFLICT (user_id, problem_id)를 사용하려면
+  해당 컬럼 조합에 UNIQUE 제약조건이 있어야 함
+- **해결**: ALTER TABLE submissions ADD CONSTRAINT
+  submissions_user_problem_unique UNIQUE (user_id, problem_id)
+- **교훈**: ON CONFLICT는 반드시 UNIQUE 또는 PRIMARY KEY 컬럼에만 사용 가능
