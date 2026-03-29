@@ -56,3 +56,19 @@
   useEffect가 의도적으로 2번 실행되어 API가 2번 호출됨
 - **해결**: next.config.mjs에서 reactStrictMode: false로 설정
 - **교훈**: Strict Mode는 개발 환경에서만 동작. 배포 환경에서는 정상 동작
+
+### 9. Pyodide IndentationError
+- **상황**: 코드 실행 시 IndentationError: unexpected indent
+- **원인**: 템플릿 리터럴 안에서 들여쓰기가 Python 코드에 그대로 반영됨
+  Python은 들여쓰기가 문법이라 예상치 못한 들여쓰기는 에러 발생
+- **해결**: wrappedCode를 파일 들여쓰기 없이 맨 앞에 붙여서 작성
+- **교훈**: Python 코드를 문자열로 생성할 때 들여쓰기 주의
+
+### 10. Pyodide globals.get() undefined 에러
+- **상황**: TypeError: Cannot read properties of undefined (reading 'get')
+- **원인**: 타입 정의에서 globals를 global로 오타
+  TypeScript 타입과 실제 Pyodide API 이름이 달라서 런타임 에러 발생
+- **해결**: PyodideType 타입에서 global → globals로 수정
+  사용하는 곳도 전부 globals로 변경
+- **교훈**: TypeScript 타입 정의 오타는 런타임까지 발견이 늦어질 수 있음
+  API 공식 문서에서 정확한 속성명 확인 필요

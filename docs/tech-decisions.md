@@ -70,3 +70,20 @@
 - 개발 환경에서 reactStrictMode: false로 설정
 - 이유: useEffect 2번 실행으로 Claude API 중복 호출 방지
 - 배포 환경에서는 정상 동작하므로 기능상 문제 없음
+
+## Python 실행: Pyodide (WebAssembly)
+- **선택 이유**
+  - 서버에서 Python 실행 시 보안 위험 (악성 코드)
+  - 브라우저 WebAssembly 샌드박스에서 실행 → 보안 보장
+  - 서버 부하 없음 → 비용 절감
+- **구현 방식**
+  - CDN에서 동적 스크립트 로드
+  - useRef로 인스턴스 관리 (리렌더링 방지)
+  - sys.stdout을 StringIO로 교체해서 출력 캡처
+  - input() mock 함수로 테스트 입력값 주입
+
+## CodeMirror 6
+- **선택 이유**
+  - 모듈형 아키텍처로 필요한 기능만 설치 가능
+  - Python 문법 하이라이팅 공식 지원
+  - VSCode 테마 지원으로 익숙한 UI 제공
