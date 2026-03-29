@@ -90,6 +90,12 @@ export default function ProblemPage() {
     // 현재 표시 중인 힌트 단계 (0: 힌트 없음, 1~3: 힌트 단계)
     const [hintStep, setHintStep] = useState(0);
 
+    // 힌트 로딩 상태
+    const [hintLoading, setHintLoading] = useState(false);
+
+    // AI 힌트 내용 저장
+    const [aiHint, setAiHint] = useState<string | null>(null);
+
     // Pyodide 훅 - Python 실행 환경
     const { loading: pyodideLoading, error: pyodideError, runCode } = usePyodide();
 
@@ -132,20 +138,49 @@ export default function ProblemPage() {
 
     // 힌트 보기 핸들러
     const handleHint = async () => {
-        if (hintStep < 3) setHintStep(hintStep + 1);
+        if (hintStep >= 3 || !problem) return;
+
+        const nextStep = hintStep + 1;
+        setHintLoading(true);
+
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hint`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    problem_id: problem.id,
+                    current_code: code,
+                    hint_step: nextStep,
+
+                    // 임시 이메일 - 나중에 인증 붙이면 교체
+                    email: "test@test.com",
+                }),
+            });
+
+            if (!res.ok) throw new Error("힌트 생성 실패");
+
+            const data = await res.json();
+
+            setAiHint(data.hint);
+            setHintStep(nextStep);
+        } catch (err) {
+            console.log(err);
+        } finally {
+            setHintLoading(false);
+        }
     };
 
-    // 현재 힌트 내용
-    const getCurrentHint = () => {
-        if (!problem) return "";
+    // // 현재 힌트 내용
+    // const getCurrentHint = () => {
+    //     if (!problem) return "";
 
-        const hints: Record<number, string> = {
-            1: problem.hint_1,
-            2: problem.hint_2,
-            3: problem.hint_3,
-        };
-        return hints[hintStep] || "";
-    };
+    //     const hints: Record<number, string> = {
+    //         1: problem.hint_1,
+    //         2: problem.hint_2,
+    //         3: problem.hint_3,
+    //     };
+    //     return hints[hintStep] || "";
+    // };
 
     // 로딩 화면
     if (loading) {
@@ -238,26 +273,30 @@ export default function ProblemPage() {
                     {/* 힌트 섹션 */}
                     <div className="mt-6">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-gray-400">힌트</h3>
+                            <h3 className="text-sm font-bold text-gray-400">AI 힌트</h3>
                             <span className="text-xs text-gray-500">{hintStep}/3 사용</span>
                         </div>
 
-                        {/* 현재 힌트 표시 */}
-                        {hintStep > 0 && (
+                        {/* AI 힌트 표시 */}
+                        {aiHint && (
                             <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 mb-3">
-                                <p className="text-xs text-yellow-400 mb-1">힌트 {hintStep}</p>
-                                <p className="text-sm text-yellow-200">{getCurrentHint()}</p>
+                                <p className="text-xs text-yellow-400 mb-1">💡 힌트 {hintStep}</p>
+                                <p className="text-sm text-yellow-200">{aiHint}</p>
                             </div>
                         )}
 
-                        {/* 힌트 보기 버튼 */}
+                        {/* 힌트 버튼 */}
                         {hintStep < 3 && (
                             <button
                                 onClick={handleHint}
-                                className="w-full py-2 rounded-lg border border-yellow-700
-                    text-yellow-400 text-sm hover:bg-yellow-900/30 transition-all"
+                                disabled={hintLoading}
+                                className={`w-full py-2 rounded-lg border border-yellow-700 text-yellow-400 text-sm transition-all ${hintLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-yellow-900/30"}`}
                             >
-                                {hintStep === 0 ? "힌트 보기" : "다음 힌트 보기"} 💡
+                                {hintLoading
+                                    ? "힌트 생성 중..."
+                                    : hintStep === 0
+                                        ? "AI 힌트 받기 💡"
+                                        : "다음 힌트 받기 💡"}
                             </button>
                         )}
                     </div>

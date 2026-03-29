@@ -19,6 +19,7 @@ from app.core.config import settings
 # Onboarding 라우터 임포트
 from app.api.routes.onboarding import router as onboarding_router
 from app.api.routes.problems import router as problems_router
+from app.api.routes.hint import router as hint_router
 
 # FastAPI 인스턴스 생성
 # title, version은 자동 생성되는 API 문서(/docs)에 표시됨
@@ -52,6 +53,7 @@ app.add_middleware(
 # prefix 없이 등록하는 이유: 라우터 자체에 /api/onboarding prefix가 이미 있음
 app.include_router(onboarding_router)
 app.include_router(problems_router)
+app.include_router(hint_router)
 
 
 # 헬스체크 엔드포인트
