@@ -63,40 +63,40 @@ async def generate_hint(
     # 힌트 단계별 구체성 조절
     # 단계가 높을수록 더 직접적인 힌트
     hint_level_desc = {
-        1: "매우 추상적인 힌트. 방향만 제시하고 구체적인 내용은 절대 언급하지 마세요.",
-        2: "중간 수준의 힌트. 사용할 개념이나 방법론을 언급할 수 있지만 코드는 절대 보여주지 마세요.",
-        3: "구체적인 힌트. 어떤 함수나 문법을 써야 하는지 알려줄 수 있지만 완성된 코드는 절대 보여주지 마세요.",
+        1: "Very abstract hint. Only suggest the direction, never mention specific details.",
+        2: "Intermediate hint. You may mention the concept or method to use, but never show code.",
+        3: "Specific hint. You may tell what function or syntax to use, but never show complete code.",
     }
 
     # Claude API 호출 - 소크라테스식 힌트 생성
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
-        system="""당신은 친절한 파이썬 코딩 전문가이자 튜터입니다.
-학습자가 스스로 문제를 해결할 수 있도록 소크라테스식 질문으로 힌트를 제공합니다.
-문제에 대한 정답 코드를 절대 직접 알려주지 마세요.
-한국어로 답변하세요.
-2~3문장 이내로 간결하게 답변하세요.""",
+        system="""You are a friendly Python coding tutor.
+Help learners solve problems through Socratic questioning.
+Never reveal the answer or show complete code directly.
+Adjust hint specificity based on the hint step level provided.
+Always respond in Korean.
+Keep responses to 2-3 sentences.""",
         messages=[
             {
                 "role": "user",
-                "content": f"""다음 문제에 대한 힌트를 제공해주세요.
-[문제 정보]
-제목: {problem_data['title']}
-설명: {problem_data['description']}
-개념: {problem_data['concept_tag']}
+                "content": f"""Provide a hint for the following problem.
+[Problem Information]
+Title: {problem_data['title']}
+Description: {problem_data['description']}
+Concept: {problem_data['concept_tag']}
 
-[학습자 현재 코드]
+[Learner's Current Code]
 ```python
 {request.current_code}
 ```
+[Hint Step]
+Step {request.hint_step}: {hint_level_desc[request.hint_step]}
 
-[힌트 단계]
-{request.hint_step}단계: {hint_level_desc[request.hint_step]}
-
-소크라테스식 질문으로 힌트를 제공해주세요.
-정답은 절대 알려주지 마세요.
-"""
+Provide a hint using Socratic questioning.
+Never reveal the answer directly.
+Respond in Korean."""
             }
         ]
     )

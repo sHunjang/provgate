@@ -69,51 +69,51 @@ async def generate_quiz(request: QuizGenerateRequest):
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2000,
-        system="당신은 파이썬 코딩 교육 전문가입니다. 반드시 유효한 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 출력하지 마세요.",
+        system="""You are an expert Python coding educator.
+Generate diagnostic quiz questions to evaluate learners' actual understanding.
+Always respond with valid JSON format only.
+Never include any text outside the JSON structure.""",
         messages=[
             {
                 "role": "user",
-                "content": f"""
-학습자의 실제 이해도를 평가하기 위한 진단 퀴즈를 생성하세요.
+                "content": f"""Generate a diagnostic quiz to evaluate the learner's actual understanding.
+[Learner Information]
+- Level: {request.level}
+- Description: {level_desc}
 
-[학습자 정보]
-- 수준: {request.level}
-- 설명: {level_desc}
+[Question Generation Rules]
+1. Generate exactly 5 questions
+2. Each question must be multiple choice with 4 options
+3. Questions must test code understanding and reasoning, not memorization
+4. Each question must measure a different concept
+5. At least 2 questions must ask about code execution results
+6. Wrong answers must be based on common misconceptions
+7. There must be exactly one correct answer
+8. Questions must include sufficient information to avoid ambiguity
 
-[문제 생성 규칙]
-1. 총 5문항 생성
-2. 각 문항은 객관식 4지선다
-3. 단순 암기가 아닌 코드 이해/추론 기반 문제
-4. 각 문항은 서로 다른 개념을 측정해야 함
-5. 최소 2문항은 코드 실행 결과를 묻는 문제 포함
-6. 오답은 실제 학습자가 헷갈릴 수 있는 오개념 기반으로 작성
-7. 정답은 반드시 하나만 존재해야 함
-8. 문제는 모호하지 않도록 충분한 정보를 포함
+[Difficulty Guidelines]
+- Must require at least one level of thinking (code reasoning, etc.)
+- Maintain appropriate difficulty for the given level
 
-[난이도 기준]
-- 최소 1단계 이상의 사고(코드 추론 등)가 필요해야 함
-- 수준에 맞는 적절한 난이도 유지
+[Output Format Rules]
+- Output valid JSON only
+- No text outside JSON is allowed
+- Use double quotes for all strings
+- No trailing commas
 
-[출력 형식 규칙]
-- 반드시 유효한 JSON만 출력
-- JSON 외 텍스트 절대 금지
-- 모든 문자열은 큰따옴표 사용
-- trailing comma 금지
-
-[출력 JSON 스키마]
+[Output JSON Schema]
 {{
     "questions": [
         {{
             "id": 1,
-            "question": "문제 내용",
-            "options": ["A. 보기1", "B. 보기2", "C. 보기3", "D. 보기4"],
+            "question": "question content in Korean",
+            "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
             "answer": 0,
-            "concept": "측정 개념",
-            "explanation": "정답 이유"
+            "concept": "concept being measured in Korean",
+            "explanation": "reason for correct answer in Korean"
         }}
     ]
-}}
-"""
+}}"""
             }
         ]
     )
