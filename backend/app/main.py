@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.api.routes.onboarding import router as onboarding_router
 from app.api.routes.problems import router as problems_router
 from app.api.routes.hint import router as hint_router
+from app.api.routes.gate import router as gate_router
 
 # FastAPI 인스턴스 생성
 # title, version은 자동 생성되는 API 문서(/docs)에 표시됨
@@ -54,6 +55,7 @@ app.add_middleware(
 app.include_router(onboarding_router)
 app.include_router(problems_router)
 app.include_router(hint_router)
+app.include_router(gate_router)
 
 
 # 헬스체크 엔드포인트
