@@ -80,3 +80,10 @@
 - **해결**: ALTER TABLE submissions ADD CONSTRAINT
   submissions_user_problem_unique UNIQUE (user_id, problem_id)
 - **교훈**: ON CONFLICT는 반드시 UNIQUE 또는 PRIMARY KEY 컬럼에만 사용 가능
+
+### 12. 게이트 문제 텍스트에 코드 블록 마커 표시
+- **상황**: 문제 텍스트에 ```python이 그대로 노출
+- **원인**: Claude API 응답에 마커가 포함됨
+- **해결**: 프론트에서 replace()로 마커 제거
+- **교훈**: Claude API 응답은 항상 전처리 필요
+  백엔드뿐만 아니라 프론트에서도 마커 제거 고려
