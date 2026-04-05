@@ -77,7 +77,7 @@ function ResultContent() {
         };
 
         completeOnboarding();
-    }, [level, answers, correctAnswers]);
+    }, []);
 
     // 로딩 화면
     if (loading) {
