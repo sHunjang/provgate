@@ -101,7 +101,7 @@ export default function GateModal({ isOpen, problemId, email, onPass, onClose }:
             setAttempts(attempts + 1);
 
             // 통과하면 부모 컴포넌트에 토큰 전달
-            if (data.passed & data.token) {
+            if (data.passed && data.token) {
                 onPass(data.token);
             }
         } catch (err) {

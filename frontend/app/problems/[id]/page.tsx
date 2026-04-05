@@ -105,6 +105,9 @@ export default function ProblemPage() {
     // 게이트 통과 토큰 -> 최종 제출 시 사용
     const [gateToken, setGateToken] = useState<string | null>(null);
 
+    // 문제 시작 시간 기록 - 소요 시간 계산용
+    const [startTime] = useState<number>(Date.now());
+
     // Pyodide 훅 - Python 실행 환경
     const { loading: pyodideLoading, error: pyodideError, runCode } = usePyodide();
 
@@ -363,7 +366,41 @@ export default function ProblemPage() {
                     {gateToken && (
                         <button
                             className="mt-2 py-3 rounded-xl font-semibold transition-all bg-green-600 text-white hover:bg-green-700"
-                            onClick={() => alert("제출 완료! (6주차에 구현 예정)")}
+                            onClick={async () => {
+                                if (!problem) return;
+
+                                // 소요 시간 계산 (초 단위)
+                                const timeSpentSec = Math.floor((Date.now() - startTime) / 1000);
+
+                                try {
+                                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {
+                                        method: "POST",
+                                        headers: { "Content-type": "application/json" },
+                                        body: JSON.stringify({
+                                            problem_id: problem.id,
+                                            email: "test@test.com",
+                                            token: gateToken,
+                                            code: code,
+                                            time_spent_sec: timeSpentSec,
+                                        }),
+                                    });
+
+                                    if (!res.ok) throw new Error("제출 실패");
+
+                                    const data = await res.json();
+
+                                    // 피드백 페이지로 이동
+                                    // 통계를 쿼리 파라미터로 전달
+                                    const params = new URLSearchParams({
+                                        level: problem.level,
+                                        stats: JSON.stringify(data.stats),
+                                    });
+                                    router.push(`/problems/feedback/${problem.id}?${params.toString()}`);
+                                } catch (err) {
+                                    console.error(err);
+                                    alert("제출 중 오류가 발생했습니다.");
+                                }
+                            }}
                         >
                             ✅ 최종 제출하기
                         </button>
