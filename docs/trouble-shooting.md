@@ -87,3 +87,17 @@
 - **해결**: 프론트에서 replace()로 마커 제거
 - **교훈**: Claude API 응답은 항상 전처리 필요
   백엔드뿐만 아니라 프론트에서도 마커 제거 고려
+
+  ### 13. & vs && 버그
+- **상황**: 게이트 통과 후 토큰이 부모 컴포넌트에 전달 안 됨
+- **원인**: 비트 AND 연산자(&)를 논리 AND 연산자(&&)로 잘못 작성
+  `if (data.passed & data.token)` → & 는 비트 연산이라 예상치 못한 동작
+- **해결**: && 로 변경
+- **교훈**: 조건문에서는 반드시 && 사용. & 는 비트 연산자임
+
+### 14. datetime offset-naive vs offset-aware 비교 에러
+- **상황**: 토큰 만료 시간 비교 시 TypeError
+- **원인**: DB의 TIMESTAMPTZ는 타임존 정보 포함(offset-aware)
+  datetime.utcnow()는 타임존 정보 없음(offset-naive)
+- **해결**: datetime.now(timezone.utc)로 변경
+- **교훈**: 항상 타임존을 명시적으로 지정하는 습관 필요
