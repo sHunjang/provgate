@@ -74,7 +74,7 @@ export default function FeedbackPage() {
         };
 
         fetchSimilarProblem();
-    }, []);
+    }, [problemId, level]);
 
     // 시간 포맷 변환 함수
     // 120초 -> "2분 0초"
