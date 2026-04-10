@@ -110,7 +110,11 @@ function ResultContent() {
     }
 
     // 수준이 올랐는지 확인
-    const levelUp = result?.declared_level !== result?.confirmed_level;
+    const levelOrder = ["beginner", "intermediate", "advanced"];
+    const declaredIdx = levelOrder.indexOf(result!.declared_level);
+    const confirmedIdx = levelOrder.indexOf(result!.confirmed_level);
+    const levelUp = confirmedIdx > declaredIdx;
+    const levelDown = confirmedIdx < declaredIdx;
 
     return (
         <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
@@ -131,6 +135,13 @@ function ResultContent() {
                         {levelUp ? (
                             <>
                                 <p className="text-sm text-gray-500 mb-1">선택하신 수준보다 실력이 더 높으시네요! 🚀</p>
+                                <p className="text-lg font-bold text-indigo-700">
+                                    {levelLabel[result!.declared_level]} → {levelLabel[result!.confirmed_level]}
+                                </p>
+                            </>
+                        ) : levelDown ? (
+                            <>
+                                <p className="text-sm text-gray-500 mb-1">조금 더 기초부터 다져보아요! 💪</p>
                                 <p className="text-lg font-bold text-indigo-700">
                                     {levelLabel[result!.declared_level]} → {levelLabel[result!.confirmed_level]}
                                 </p>
