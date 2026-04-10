@@ -156,11 +156,15 @@ Never include any text outside the JSON structure.""",
 
     try:
         quiz_data = json.loads(response_text)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        # 에러 상세 로깅
+        print(f"JSON 파싱 에러: {e}")
+        print(f"응답 텍스트: {repr(response_text[:200])}")
         raise HTTPException(
             status_code=500,
-            detail="퀴즈 생성 중 오류가 발생했습니다. 다시 시도해주세요."
+            detail=f"퀴즈 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         )
+    
     
     return {
         "level": request.level,
