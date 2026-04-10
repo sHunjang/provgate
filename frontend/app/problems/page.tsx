@@ -36,7 +36,7 @@ export default function ProblemPage() {
     // 선택된 난이도 필터 (null이면 전체)
     const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
 
-    // 로딩 상세
+    // 로딩 상태
     const [loading, setLoading] = useState(true);
 
     // 에러 상태
@@ -67,12 +67,12 @@ export default function ProblemPage() {
     }, [selectedLevel]);
 
     return (
-        <main className="min-h-screen bg-gray-900 text-white p-8">
+        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
             <div className="max-w-4xl mx-auto">
                 {/* 헤더 */}
                 <div className="mb-8">
-                    <h1 className="text-2xl font-bold mb-2">문제 목록</h1>
-                    <p className="text-gray-400">수준에 맞는 문제를 선택해서 풀어보세요</p>
+                    <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">문제 목록</h1>
+                    <p className="text-gray-500 dark:text-gray-400">수준에 맞는 문제를 선택해서 풀어보세요</p>
                 </div>
 
                 {/* 난이도 필터 */}
@@ -82,7 +82,11 @@ export default function ProblemPage() {
                             key={level}
                             onClick={() => setSelectedLevel(level)}
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-all
-                ${selectedLevel === level ? levelStyle[level] : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
+                                ${
+                                    selectedLevel === level
+                                        ? levelStyle[level]
+                                        : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700"
+                                }`}
                         >
                             {levelLabel[level]}
                         </button>
@@ -90,7 +94,9 @@ export default function ProblemPage() {
                 </div>
 
                 {/* 로딩 */}
-                {loading && <div className="text-center py-20 text-gray-400">문제를 불러오는 중...</div>}
+                {loading && (
+                    <div className="text-center py-20 text-gray-500 dark:text-gray-400">문제를 불러오는 중...</div>
+                )}
 
                 {/* 에러 */}
                 {error && <div className="text-center py-20 text-red-400">{error}</div>}
@@ -99,35 +105,42 @@ export default function ProblemPage() {
                 {!loading && !error && (
                     <div className="space-y-4">
                         {problems.length === 0 ? (
-                            <div className="text-center py-20 text-gray-400">아직 문제가 없습니다.</div>
+                            <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+                                아직 문제가 없습니다.
+                            </div>
                         ) : (
                             problems.map((problem, idx) => (
                                 <div
                                     key={problem.id}
                                     onClick={() => router.push(`/problems/${problem.id}`)}
-                                    className="bg-gray-800 rounded-xl p-6 cursor-pointer
-                    hover:bg-gray-700 transition-all border border-gray-700
-                    hover:border-indigo-500"
+                                    className="bg-white dark:bg-gray-800 rounded-xl p-6 cursor-pointer
+                                        hover:bg-gray-50 dark:hover:bg-gray-700 transition-all
+                                        border border-gray-200 dark:border-gray-700
+                                        hover:border-indigo-500"
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             {/* 문제 번호 */}
-                                            <span className="text-gray-500 font-mono text-sm">
+                                            <span className="text-gray-400 dark:text-gray-500 font-mono text-sm">
                                                 #{String(idx + 1).padStart(2, "0")}
                                             </span>
                                             {/* 문제 제목 */}
-                                            <h2 className="font-semibold text-white">{problem.title}</h2>
+                                            <h2 className="font-semibold text-gray-900 dark:text-white">
+                                                {problem.title}
+                                            </h2>
                                         </div>
                                         {/* 난이도 뱃지 */}
                                         <span
                                             className={`text-xs px-3 py-1 rounded-full font-medium
-                    ${levelStyle[problem.level]}`}
+                                            ${levelStyle[problem.level]}`}
                                         >
                                             {problem.concept_tag}
                                         </span>
                                     </div>
                                     {/* 문제 설명 미리보기 */}
-                                    <p className="text-gray-400 text-sm mt-3 line-clamp-2">{problem.description}</p>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 line-clamp-2">
+                                        {problem.description}
+                                    </p>
                                 </div>
                             ))
                         )}

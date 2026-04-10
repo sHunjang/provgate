@@ -82,7 +82,7 @@ function ResultContent() {
     // 로딩 화면
     if (loading) {
         return (
-            <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
                 <div className="text-center">
                     <div className="text-5xl mb-4">📊</div>
                     <p className="text-lg text-gray-600">결과를 분석하고 있어요...</p>
@@ -94,7 +94,7 @@ function ResultContent() {
     // 에러 화면
     if (error) {
         return (
-            <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
                 <div className="text-center">
                     <div className="text-5xl mb-4">😢</div>
                     <p className="text-lg text-gray-600">{error}</p>
@@ -117,21 +117,21 @@ function ResultContent() {
     const levelDown = confirmedIdx < declaredIdx;
 
     return (
-        <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
             <div className="w-full max-w-2xl">
                 {/* 점수 카드 */}
-                <div className="bg-white rounded-xl p-8 shadow-sm mb-6 text-center">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm mb-6 text-center">
                     <div className="text-5xl mb-4">
                         {result!.ratio >= 80 ? "🎉" : result!.ratio >= 40 ? "👍" : "💪"}
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">진단 완료!</h1>
-                    <p className="text-gray-600 mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">진단 완료!</h1>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
                         5문항 중 <span className="font-bold text-indigo-600">{result!.score}개</span> 정답 (
                         {result!.ratio}%)
                     </p>
 
                     {/* 수준 확정 결과 */}
-                    <div className="bg-indigo-50 rounded-xl p-4">
+                    <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-4">
                         {levelUp ? (
                             <>
                                 <p className="text-sm text-gray-500 mb-1">선택하신 수준보다 실력이 더 높으시네요! 🚀</p>
@@ -158,8 +158,8 @@ function ResultContent() {
                 </div>
 
                 {/* 로드맵 카드 */}
-                <div className="bg-white rounded-xl p-8 shadow-sm mb-6">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4">📚 학습 로드맵</h2>
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm mb-6">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📚 학습 로드맵</h2>
                     <div className="space-y-3">
                         {result!.roadmap.map((item, idx) => (
                             <div
@@ -167,7 +167,7 @@ function ResultContent() {
                                 className="flex items-center gap-3"
                             >
                                 {/* 순서 번호 */}
-                                <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                <span className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-bold flex-shrink-0">
                                     {idx + 1}
                                 </span>
                                 <span className="text-gray-700">{item}</span>
@@ -193,8 +193,8 @@ export default function ResultPage() {
     return (
         <Suspense
             fallback={
-                <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-                    <p className="text-gray-600">로딩 중...</p>
+                <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <p className="text-gray-600 dark:text-gray-400" />
                 </main>
             }
         >

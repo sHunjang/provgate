@@ -34,7 +34,7 @@ export default function FeedbackPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    // URL 쿼리 타라미터에서 통계와 수준 가져오기
+    // URL 쿼리 파라미터에서 통계와 수준 가져오기
     const problemId = params.id as string;
     const level = searchParams.get("level") || "beginner";
     const stats: Stats = JSON.parse(
@@ -96,30 +96,30 @@ export default function FeedbackPage() {
     const hintEval = getHintEval(stats.hint_count);
 
     return (
-        <main className="min-h-screen bg-gray-900 text-white p-8">
+        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
             <div className="max-w-2xl mx-auto">
                 {/* 헤더 */}
                 <div className="text-center mb-10">
                     <div className="text-6xl mb-4">🎉</div>
-                    <h1 className="text-3xl font-bold mb-2">제출 완료!</h1>
-                    <p className="text-gray-400">수고했어요! 결과를 확인해보세요.</p>
+                    <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">제출 완료!</h1>
+                    <p className="text-gray-500 dark:text-gray-400">수고했어요! 결과를 확인해보세요.</p>
                 </div>
 
                 {/* 통계 카드 */}
-                <div className="bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-700">
-                    <h2 className="text-lg font-bold mb-4 text-gray-300">📊 풀이 통계</h2>
+                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-lg font-bold mb-4 text-gray-700 dark:text-gray-300">📊 풀이 통계</h2>
                     <div className="grid grid-cols-3 gap-4">
                         {/* 힌트 사용 횟수 */}
-                        <div className="text-center p-4 bg-gray-700 rounded-xl">
+                        <div className="text-center p-4 bg-gray-100 dark:bg-gray-700 rounded-xl">
                             <p className="text-3xl font-bold text-indigo-400 mb-1">{stats.hint_count}</p>
-                            <p className="text-xs text-gray-400">힌트 사용</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">힌트 사용</p>
                             <p className={`text-xs mt-1 ${hintEval.color}`}>{hintEval.text}</p>
                         </div>
 
                         {/* 게이트 시도 횟수 */}
-                        <div className="text-center p-4 bg-gray-700 rounded-xl">
+                        <div className="text-center p-4 bg-gray-100 dark:bg-gray-700 rounded-xl">
                             <p className="text-3xl font-bold text-purple-400 mb-1">{stats.gate_attempts}</p>
-                            <p className="text-xs text-gray-400">게이트 시도</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">게이트 시도</p>
                             <p
                                 className={`text-xs mt-1 ${
                                     stats.gate_attempts <= 1 ? "text-green-400" : "text-gray-400"
@@ -130,23 +130,23 @@ export default function FeedbackPage() {
                         </div>
 
                         {/* 소요 시간 */}
-                        <div className="text-center p-4 bg-gray-700 rounded-xl">
+                        <div className="text-center p-4 bg-gray-100 dark:bg-gray-700 rounded-xl">
                             <p className="text-3xl font-bold text-blue-400 mb-1">
                                 {Math.floor(stats.time_spent_sec / 60)}
                             </p>
-                            <p className="text-xs text-gray-400">분 소요</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">분 소요</p>
                             <p className="text-xs mt-1 text-gray-400">{formatTime(stats.time_spent_sec)}</p>
                         </div>
                     </div>
                 </div>
 
                 {/* 유사 문제 추천 */}
-                <div className="bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-700">
-                    <h2 className="text-lg font-bold mb-4 text-gray-300">🔥 다음 도전 문제</h2>
+                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-lg font-bold mb-4 text-gray-700 dark:text-gray-300">🔥 다음 도전 문제</h2>
 
                     {loading ? (
-                        <div className="text-center py-8 text-gray-400">
-                            <p>AI가 맞춤 문제를 생성하고 있어요...</p>
+                        <div className="text-center py-8">
+                            <p className="text-gray-500 dark:text-gray-400">AI가 맞춤 문제를 생성하고 있어요...</p>
                         </div>
                     ) : similarProblem ? (
                         <div>
@@ -160,15 +160,17 @@ export default function FeedbackPage() {
                                 </span>
                             </div>
 
-                            <h3 className="text-xl font-bold text-white mb-3">{similarProblem.title}</h3>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
+                                {similarProblem.title}
+                            </h3>
 
-                            <p className="text-gray-400 text-sm whitespace-pre-wrap mb-4">
+                            <p className="text-gray-500 dark:text-gray-400 text-sm whitespace-pre-wrap mb-4">
                                 {similarProblem.description}
                             </p>
 
                             {/* 테스트 케이스 미리보기 */}
-                            <div className="bg-gray-700 rounded-xl p-4 mb-4">
-                                <p className="text-xs text-gray-400 mb-2">예제 입출력</p>
+                            <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-4 mb-4">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">예제 입출력</p>
                                 {similarProblem.test_cases.slice(0, 2).map((tc, idx) => (
                                     <div
                                         key={idx}
@@ -176,11 +178,11 @@ export default function FeedbackPage() {
                                     >
                                         <div className="flex-1">
                                             <span className="text-gray-500 text-xs">입력: </span>
-                                            <code className="text-green-300">{tc.input}</code>
+                                            <code className="text-green-600 dark:text-green-300">{tc.input}</code>
                                         </div>
                                         <div className="flex-1">
                                             <span className="text-gray-500 text-xs">출력: </span>
-                                            <code className="text-blue-300">{tc.output}</code>
+                                            <code className="text-blue-600 dark:text-blue-300">{tc.output}</code>
                                         </div>
                                     </div>
                                 ))}
@@ -198,21 +200,25 @@ export default function FeedbackPage() {
                                 // 피드백 페이지에서 직접 유사 문제를 보여주는 방식으로 변경
                                 // 일단 버튼 클릭 시 문제 목록으로 이동
                                 onClick={() => router.push("/problems")}
-                                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl
+                                    font-semibold hover:bg-indigo-700 transition-all"
                             >
                                 이 문제 도전하기 →
                             </button>
                         </div>
                     ) : (
-                        <p className="text-gray-400 text-center py-4">유사 문제를 불러올 수 없습니다.</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                            유사 문제를 불러올 수 없습니다.
+                        </p>
                     )}
                 </div>
 
                 {/* 하단 버튼 */}
                 <button
                     onClick={() => router.push("/problems")}
-                    className="w-full py-3 bg-gray-700 text-gray-300 rounded-xl
-            font-semibold hover:bg-gray-600 transition-all"
+                    className="w-full py-3 bg-gray-200 dark:bg-gray-700 text-gray-600
+                        dark:text-gray-300 rounded-xl font-semibold
+                        hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
                 >
                     문제 목록으로 돌아가기
                 </button>

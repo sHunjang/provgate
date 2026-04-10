@@ -123,10 +123,12 @@ function QuizContent() {
     // 로딩 화면
     if (loading) {
         return (
-            <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
                 <div className="text-center">
                     <div className="text-5xl mb-4">🤔</div>
-                    <p className="text-lg text-gray-600">{level} 수준에 맞는 퀴즈를 생성하고 있어요...</p>
+                    <p className="text-lg text-gray-600 dark:text-gray-400">
+                        {level} 수준에 맞는 퀴즈를 생성하고 있어요...
+                    </p>
                     <p className="text-sm text-gray-400 mt-2">AI가 문제를 만드는 중이라 10초 정도 걸릴 수 있어요</p>
                 </div>
             </main>
@@ -136,10 +138,10 @@ function QuizContent() {
     // 에러 화면
     if (error) {
         return (
-            <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
                 <div className="text-center">
                     <div className="text-5xl mb-4">😢</div>
-                    <p className="text-lg text-gray-600">{error}</p>
+                    <p className="text-lg text-gray-600 dark:text-gray-400">{error}</p>
                     <button
                         onClick={() => router.push("/")}
                         className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg"
@@ -164,18 +166,18 @@ function QuizContent() {
     const allAnswered = answers.every((a) => a !== -1);
 
     return (
-        <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8">
+        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
             <div className="w-full max-w-2xl">
                 {/* 진행 상태 바 */}
                 <div className="mb-8">
-                    <div className="flex justify-between text-sm text-gray-500 mb-2">
+                    <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
                         <span>
                             {currentIdx + 1} / {questions.length}
                         </span>
                         <span>{answers.filter((a) => a !== -1).length}개 답변 완료</span>
                     </div>
                     {/* 진행률 바 - 현재 인덱스 기준 */}
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                             className="bg-indigo-600 h-2 rounded-full transition-all"
                             style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
@@ -184,7 +186,7 @@ function QuizContent() {
                 </div>
 
                 {/* 문제 카드 */}
-                <div className="bg-white rounded-xl p-8 shadow-sm mb-6">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm mb-6">
                     {/* 개념 태그 */}
                     <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
                         {currentQuestion.concept}
@@ -192,7 +194,7 @@ function QuizContent() {
 
                     {/* 문제 */}
                     {/* whitespace-pre-wrap: 코드 줄바꿈 유지 */}
-                    <p className="text-lg font-medium text-gray-900 mt-4 mb-6 whitespace-pre-wrap">
+                    <p className="text-lg font-medium text-gray-900 dark:text-white mt-4 mb-6 whitespace-pre-wrap">
                         {currentQuestion.question
                             .replace(/```python/g, "")
                             .replace(/```/g, "")
@@ -209,7 +211,7 @@ function QuizContent() {
                                 ${
                                     currentAnswer === idx
                                         ? "border-indigo-500 bg-indigo-50 text-indigo-900 font-medium"
-                                        : "border-gray-200 bg-white text-gray-800 hover:border-indigo-300 hover:bg-indigo-50"
+                                        : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-600"
                                 }`}
                             >
                                 {option}
@@ -228,7 +230,7 @@ function QuizContent() {
                 ${
                     currentIdx === 0
                         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 }`}
                     >
                         ← 이전
@@ -272,7 +274,7 @@ export default function QuizPage() {
     return (
         <Suspense
             fallback={
-                <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
                     <p className="text-gray-600">로딩 중...</p>
                 </main>
             }
