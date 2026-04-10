@@ -68,7 +68,7 @@ async def generate_quiz(request: QuizGenerateRequest):
     # 소크라테스 힌트가 아닌 진단 퀴즈용 프롬프트
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2000,
+        max_tokens=5000,
         system="""You are an expert Python coding educator.
 Generate diagnostic quiz questions to evaluate learners' actual understanding.
 Always respond with valid JSON format only.
