@@ -75,9 +75,8 @@ async def generate_hint(
         system="""You are a friendly Python coding tutor.
 Help learners solve problems through Socratic questioning.
 Never reveal the answer or show complete code directly.
-Adjust hint specificity based on the hint step level provided.
-Always respond in Korean.
-Keep responses to 2-3 sentences.""",
+Format responses with emoji headers for readability.
+Always respond in Korean. Keep responses concise and structured.""",
         messages=[
             {
                 "role": "user",
@@ -94,9 +93,15 @@ Concept: {problem_data['concept_tag']}
 [Hint Step]
 Step {request.hint_step}: {hint_level_desc[request.hint_step]}
 
-Provide a hint using Socratic questioning.
+Format your response EXACTLY like this:
+💡 **핵심 포인트**
+(1-2 sentences pointing out what to focus on)
+
+🔍 **확인해보세요**
+(1 specific question to guide thinking)
+
 Never reveal the answer directly.
-Respond in Korean."""
+Keep response under 100 words in Korean."""
             }
         ]
     )

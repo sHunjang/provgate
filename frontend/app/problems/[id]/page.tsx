@@ -319,22 +319,55 @@ export default function ProblemPage() {
                     </div>
 
                     {/* 테스트 결과 */}
+                    {/* 테스트 결과 */}
                     {testResult && (
-                        <div
-                            className={`mt-6 p-4 rounded-lg ${
-                                testResult.success ? "bg-green-900/50" : "bg-red-900/50"
-                            }`}
-                        >
-                            <p className="font-bold mb-3">{testResult.message}</p>
+                        <div className="mt-6">
+                            {/* 결과 요약 */}
+                            <div
+                                className={`p-3 rounded-lg mb-3 font-bold text-sm ${
+                                    testResult.success ? "bg-green-900/50 text-green-300" : "bg-red-900/50 text-red-300"
+                                }`}
+                            >
+                                {testResult.message}
+                            </div>
+
+                            {/* 테스트 케이스별 상세 결과 */}
                             {testResult.results?.map((r, idx) => (
                                 <div
                                     key={idx}
-                                    className="text-sm mb-2 flex items-center gap-2"
+                                    className={`mb-3 rounded-lg overflow-hidden border ${
+                                        r.passed ? "border-green-700" : "border-red-700"
+                                    }`}
                                 >
-                                    <span>{r.passed ? "✅" : "❌"}</span>
-                                    <span className="text-gray-300">
-                                        테스트 {idx + 1}: {r.message}
-                                    </span>
+                                    {/* 테스트 헤더 */}
+                                    <div
+                                        className={`px-4 py-2 text-xs font-bold flex items-center gap-2 ${
+                                            r.passed ? "bg-green-900/50 text-green-300" : "bg-red-900/50 text-red-300"
+                                        }`}
+                                    >
+                                        <span>{r.passed ? "✅" : "❌"}</span>
+                                        <span>테스트 {idx + 1}</span>
+                                    </div>
+
+                                    {/* 입력/출력 표 */}
+                                    <div className="bg-gray-800 divide-y divide-gray-700">
+                                        <div className="flex text-xs">
+                                            <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
+                                                예상 출력
+                                            </div>
+                                            <div className="flex-1 px-3 py-2 text-blue-300 font-mono">{r.expected}</div>
+                                        </div>
+                                        {!r.passed && (
+                                            <div className="flex text-xs">
+                                                <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
+                                                    실제 출력
+                                                </div>
+                                                <div className="flex-1 px-3 py-2 text-red-300 font-mono">
+                                                    {r.output || "출력 없음"}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
