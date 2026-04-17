@@ -1,5 +1,5 @@
-# ThinkCode
-> AI 힌트를 써도 이해를 강제하는 코딩 학습 플랫폼
+# ProvGate
+> AI와 함께, 이해는 스스로
 
 ## Tech Stack
 - Frontend: Next.js 14 + Tailwind CSS + CodeMirror 6

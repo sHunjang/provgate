@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     
     # 앱 기본 정보 - 나중에 자동 생성되는 API 문서에 표시됨
-    APP_NAME: str = "ThinkCode API"
+    APP_NAME: str = "ProvGate API"
     DEBUG: bool = False
 
 

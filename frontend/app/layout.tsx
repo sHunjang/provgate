@@ -3,8 +3,8 @@ import "./globals.css";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
 export const metadata: Metadata = {
-    title: "ThinkCode",
-    description: "AI 힌트를 써도 이해를 강제하는 코딩 학습 플랫폼",
+    title: "ProvGate",
+    description: "AI와 함께, 이해는 스스로",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
