@@ -21,6 +21,16 @@ type OnboardingResult = {
     roadmap: string[];
 };
 
+// 퀴즈 문항 타입 정의
+type Question = {
+    id: number;
+    question: string;
+    options: string[];
+    answer: number;
+    concept: string;
+    explanation: string;
+};
+
 // 수준 한글 변환 - 딕셔너리로 O(1) 조회
 const levelLabel: Record<string, string> = {
     beginner: "입문자",
@@ -36,6 +46,9 @@ function ResultContent() {
     const level = searchParams.get("level") || "beginner";
     const answers = JSON.parse(searchParams.get("answers") || "[]");
     const correctAnswers = JSON.parse(searchParams.get("correctAnswers") || "[]");
+
+    // questions 파싱
+    const questions = JSON.parse(searchParams.get("questions") || "[]");
 
     // 결과 데이터 파싱
     const [result, setResult] = useState<OnboardingResult | null>(null);
@@ -156,6 +169,73 @@ function ResultContent() {
                         )}
                     </div>
                 </div>
+
+                {/* 문제별 결과 */}
+                {questions.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-6">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📝 문제별 결과</h2>
+                        <div className="space-y-4">
+                            {questions.map((q: Question, idx: number) => {
+                                const userAnswer = answers[idx];
+                                const isCorrect = userAnswer === q.answer;
+                                return (
+                                    <div
+                                        key={q.id}
+                                        className={`rounded-xl p-4 border ${
+                                            isCorrect
+                                                ? "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20"
+                                                : "border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20"
+                                        }`}
+                                    >
+                                        {/* 문제 헤더 */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span>{isCorrect ? "✅" : "❌"}</span>
+                                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                {q.concept}
+                                            </span>
+                                        </div>
+
+                                        {/* 문제 내용 */}
+                                        <p className="text-sm text-gray-800 dark:text-gray-200 mb-3 whitespace-pre-wrap">
+                                            {q.question
+                                                .replace(/```python/g, "")
+                                                .replace(/```/g, "")
+                                                .trim()}
+                                        </p>
+
+                                        {/* 내 답 vs 정답 */}
+                                        <div className="space-y-1">
+                                            <div
+                                                className={`text-xs px-3 py-1.5 rounded-lg ${
+                                                    isCorrect
+                                                        ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
+                                                        : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                                                }`}
+                                            >
+                                                <span className="font-medium">내 답: </span>
+                                                {q.options[userAnswer] || "미답변"}
+                                            </div>
+
+                                            {/* 틀렸을 때만 정답 표시 */}
+                                            {!isCorrect && (
+                                                <div className="text-xs px-3 py-1.5 rounded-lg bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
+                                                    <span className="font-medium">정답: </span>
+                                                    {q.options[q.answer]}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 해설 */}
+                                        <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
+                                            <span className="font-medium">💡 해설: </span>
+                                            {q.explanation}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* 로드맵 카드 */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm mb-6">

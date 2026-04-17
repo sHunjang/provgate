@@ -115,6 +115,7 @@ function QuizContent() {
             level,
             answers: JSON.stringify(answers),
             correctAnswers: JSON.stringify(correctAnswers),
+            questions: JSON.stringify(questions), // 문제 데이터도 같이 전달
         });
 
         router.push(`/onboarding/result?${params.toString()}`);
@@ -127,9 +128,11 @@ function QuizContent() {
                 <div className="text-center">
                     <div className="text-5xl mb-4">🤔</div>
                     <p className="text-lg text-gray-600 dark:text-gray-400">
-                        {level} 수준에 맞는 퀴즈를 생성하고 있어요...
+                        AI가 {level} 맞춤 진단 문제를 생성하고 있어요 🤖
                     </p>
-                    <p className="text-sm text-gray-400 mt-2">AI가 문제를 만드는 중이라 10초 정도 걸릴 수 있어요</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                        수준에 맞는 문제를 분석 중이에요. 시간이 조금 걸릴 수 있어요..
+                    </p>
                 </div>
             </main>
         );
