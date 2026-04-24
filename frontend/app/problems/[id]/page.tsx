@@ -15,6 +15,9 @@ import { usePyodide } from "@/app/hooks/usePyodide";
 // GateModal 컴포넌트 추가
 import GateModal from "@/app/components/GateModal";
 
+// useAuth: 현재 로그인한 유저 정보 가져오기
+import { useAuth } from "@/app/hooks/useAuth";
+
 // 테스트 케이스 타입
 type TestCase = {
     input: string;
@@ -74,6 +77,8 @@ export default function ProblemPage() {
     const params = useParams();
     const router = useRouter();
     const problemId = params.id as string;
+
+    const { user } = useAuth();
 
     // 문제 데이터 상세
     const [problem, setProblem] = useState<Problem | null>(null);
@@ -170,7 +175,7 @@ export default function ProblemPage() {
                     hint_step: nextStep,
 
                     // 임시 이메일 - 나중에 인증 붙이면 교체
-                    email: "test@test.com",
+                    email: user?.email || "",
                 }),
             });
 
@@ -411,7 +416,7 @@ export default function ProblemPage() {
                                         headers: { "Content-type": "application/json" },
                                         body: JSON.stringify({
                                             problem_id: problem.id,
-                                            email: "test@test.com",
+                                            email: user?.email || "",
                                             token: gateToken,
                                             code: code,
                                             time_spent_sec: timeSpentSec,
@@ -445,7 +450,7 @@ export default function ProblemPage() {
             <GateModal
                 isOpen={gateOpen}
                 problemId={problem.id}
-                email="test@test.com"
+                email={user?.email || ""}
                 onPass={(token) => {
                     // 토큰 저장
                     setGateToken(token);

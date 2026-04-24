@@ -121,7 +121,11 @@ Level: {problem_data['level']}
         ]
     )
 
-    response_text = message.content[0].text
+    response_text = next(
+        (block.text for block in message.content
+            if isinstance(block, anthropic.types.TextBlock)),
+        ""
+    )
 
     # 코드 블록 마커 제거
     response_text = response_text.strip()

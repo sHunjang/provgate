@@ -71,3 +71,30 @@ async def get_problem(id: str, db: AsyncSession = Depends(get_db)):
         )
     
     return dict(problem._mapping)
+
+
+# GET /api/problems/completed/{user_email}
+# 유저가 완료한 문제 목록 조회
+@router.get("/completed/{user_email}")
+async def get_completed_problems(user_email: str, db: AsyncSession = Depends(get_db)):
+
+    # 해당 유저의 제출 완료된 문제 ID 목록 조회
+    # gate_passed=True인 경우만 완료로 간주
+    result = await db.execute(
+        text("""
+            SELECT DISTINCT s.problem_id
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE u.email = :email
+            AND s.gate_passed = TRUE
+        """),
+        {"email": user_email}
+    )
+
+    # 완료된 문제 ID 리스트로 변환
+    completed_ids = [str(row.problem_id) for row in result.fetchall()]
+
+    return {
+        "email": user_email,
+        "completed_problem_ids": completed_ids
+    }

@@ -53,6 +53,12 @@ async def submit_solution(
     db: AsyncSession = Depends(get_db)
 ):
     
+    # 디버그 로그 추가
+    print("=== 제출 디버깅 ===")
+    print(f"token: {request.token}")
+    print(f"problem_id: {request.problem_id}")
+    print(f"email: {request.email}")
+    
     # 1. 토큰 유효성 검증
     # 토큰이 존재하고, 사용되지 않았고, 만료되지 않았는지 확인
     token_result = await db.execute(
@@ -72,6 +78,8 @@ async def submit_solution(
     )
     token_data = token_result.fetchone()
 
+    # 디버깅 로그
+    print(f"token_data: {token_data}")
 
     # 토큰이 없으면 제출 불가
     if not token_data:
@@ -106,15 +114,17 @@ async def submit_solution(
     )
 
 
-    # 3. submissions 테이블 최종 업데이트
+    # 3. submissions 테이블 최종 업데이트 (없으면 INSERT, 있으면 UPDATE)
     await db.execute(
         text("""
-            UPDATE submissions
-            SET code = :code,
+            INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
+            VALUES (:user_id, :problem_id, :code, 0, TRUE, 0, :time_spent_sec)
+            ON CONFLICT (user_id, problem_id)
+            DO UPDATE SET
+                code = :code,
+                gate_passed = TRUE,
                 time_spent_sec = :time_spent_sec,
                 submitted_at = NOW()
-            WHERE user_id = :user_id
-            AND problem_id = :problem_id
         """),
         {
             "code": request.code,
@@ -141,7 +151,12 @@ async def submit_solution(
         }
     )
 
-    stats = dict(stats_result.fetchone()._mapping)
+    stats_row = stats_result.fetchone()
+
+    if not stats_row:
+        stats = {"hint_count": 0, "gate_attempts": 0, "time_spent_sec": 0}
+    else:
+        stats = dict(stats_row._mapping)
 
     return {
         "success": True,
@@ -228,7 +243,12 @@ Level: {problem_data['level']}
         ]
     )
 
-    response_text = message.content[0].text
+    # text 타입 블록만 필터링
+    response_text = next(
+        (block.text for block in message.content
+            if isinstance(block, anthropic.types.TextBlock)),
+        ""
+    )
 
     # 코드 블록 마커 제거
     response_text = response_text.strip()

@@ -10,6 +10,9 @@ import { useEffect, useState } from "react";
 // useSearchParams: URL 쿼리 파라미터 읽기
 import { useRouter, useSearchParams } from "next/navigation";
 
+// useAuth: 현재 로그인한 유저 정보 가져오기
+import { useAuth } from "@/app/hooks/useAuth";
+
 // 온보딩 완료 결과 타입 정의
 type OnboardingResult = {
     email: string;
@@ -42,6 +45,9 @@ function ResultContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
+    // 현재 로그인한 유저 정보
+    const { user } = useAuth();
+
     // URL 쿼리 파라미터에서 데이터 파싱
     const level = searchParams.get("level") || "beginner";
     const answers = JSON.parse(searchParams.get("answers") || "[]");
@@ -70,7 +76,7 @@ function ResultContent() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         // 임시 이메일 - 나중에 인증 붙이면 교체
-                        email: "test@test.com",
+                        email: user?.email || "",
                         declared_level: level,
                         answers,
                         correct_answers: correctAnswers,
@@ -90,7 +96,7 @@ function ResultContent() {
         };
 
         completeOnboarding();
-    }, []);
+    }, [user]);
 
     // 로딩 화면
     if (loading) {
@@ -111,7 +117,7 @@ function ResultContent() {
                 <div className="text-center">
                     <div className="text-5xl mb-4">😢</div>
                     <p className="text-lg text-gray-600">{error}</p>
-                    <button
+                    <button 
                         onClick={() => router.push("/")}
                         className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg"
                     >

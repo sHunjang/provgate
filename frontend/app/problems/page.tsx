@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+// useAuth: 현재 로그인한 유저 정보 가져오기
+import { useAuth } from "../hooks/useAuth";
+
 // 문제 타입 정의
 type Problem = {
     id: string;
@@ -30,8 +33,14 @@ const levelLabel: Record<string, string> = {
 export default function ProblemPage() {
     const router = useRouter();
 
+    // 현재 로그인한 유저 정보
+    const { user } = useAuth();
+
     // 문제 목록 상태
     const [problems, setProblems] = useState<Problem[]>([]);
+
+    // 완료된 문제 ID 목록
+    const [completedIds, setCompletedIds] = useState<string[]>([]);
 
     // 선택된 난이도 필터 (null이면 전체)
     const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -65,6 +74,28 @@ export default function ProblemPage() {
 
         fetchProblems();
     }, [selectedLevel]);
+
+    // 로그인한 유저의 완료된 문제 목록 조회
+    useEffect(() => {
+        const fetchCompletedProblems = async () => {
+            // 비로그인 시 완료 목록 조회 안 함
+            if (!user?.email) return;
+
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/problems/completed/${user.email}`);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                // data가 없거나 배열이 없을 때 빈 배열로 처리
+                setCompletedIds(data.completed_problem_ids ?? []);
+            } catch {
+                console.error("완료 목록 조회 실패");
+                setCompletedIds([]);
+            }
+        };
+
+        fetchCompletedProblems();
+    }, [user]);
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
@@ -109,40 +140,62 @@ export default function ProblemPage() {
                                 아직 문제가 없습니다.
                             </div>
                         ) : (
-                            problems.map((problem, idx) => (
-                                <div
-                                    key={problem.id}
-                                    onClick={() => router.push(`/problems/${problem.id}`)}
-                                    className="bg-white dark:bg-gray-800 rounded-xl p-6 cursor-pointer
-                                        hover:bg-gray-50 dark:hover:bg-gray-700 transition-all
-                                        border border-gray-200 dark:border-gray-700
-                                        hover:border-indigo-500"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            {/* 문제 번호 */}
-                                            <span className="text-gray-400 dark:text-gray-500 font-mono text-sm">
-                                                #{String(idx + 1).padStart(2, "0")}
-                                            </span>
-                                            {/* 문제 제목 */}
-                                            <h2 className="font-semibold text-gray-900 dark:text-white">
-                                                {problem.title}
-                                            </h2>
+                            problems.map((problem, idx) => {
+                                // 완료된 문제 여부 확인
+                                const isCompleted = completedIds.includes(problem.id);
+                                return (
+                                    <div
+                                        key={problem.id}
+                                        onClick={() => router.push(`/problems/${problem.id}`)}
+                                        className={`bg-white dark:bg-gray-800 rounded-xl p-6 cursor-pointer
+                                            hover:bg-gray-50 dark:hover:bg-gray-700 transition-all
+                                            border hover:border-indigo-500
+                                            ${
+                                                isCompleted
+                                                    ? // 완료된 문제: 초록색 테두리
+                                                    "border-green-400 dark:border-green-600"
+                                                    : // 미완료 문제: 기본 테두리
+                                                    "border-gray-200 dark:border-gray-700"
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                {/* 완료 여부에 따라 번호 또는 체크 표시 */}
+                                                {isCompleted ? (
+                                                    <span className="text-green-500 text-lg">✅</span>
+                                                ) : (
+                                                    <span className="text-gray-400 dark:text-gray-500 font-mono text-sm">
+                                                        #{String(idx + 1).padStart(2, "0")}
+                                                    </span>
+                                                )}
+                                                {/* 문제 제목 */}
+                                                <h2 className="font-semibold text-gray-900 dark:text-white">
+                                                    {problem.title}
+                                                </h2>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {/* 완료 뱃지 */}
+                                                {isCompleted && (
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium">
+                                                        완료
+                                                    </span>
+                                                )}
+                                                {/* 난이도 뱃지 */}
+                                                <span
+                                                    className={`text-xs px-3 py-1 rounded-full font-medium
+                                                    ${levelStyle[problem.level]}`}
+                                                >
+                                                    {problem.concept_tag}
+                                                </span>
+                                            </div>
                                         </div>
-                                        {/* 난이도 뱃지 */}
-                                        <span
-                                            className={`text-xs px-3 py-1 rounded-full font-medium
-                                            ${levelStyle[problem.level]}`}
-                                        >
-                                            {problem.concept_tag}
-                                        </span>
+                                        {/* 문제 설명 미리보기 */}
+                                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 line-clamp-2">
+                                            {problem.description}
+                                        </p>
                                     </div>
-                                    {/* 문제 설명 미리보기 */}
-                                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 line-clamp-2">
-                                        {problem.description}
-                                    </p>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}

@@ -134,7 +134,11 @@ Never include any text outside the JSON structure.""",
 
 
     # Claude 응답에서 텍스트 추출
-    response_text = message.content[0].text
+    response_text = next(
+        (block.text for block in message.content
+            if isinstance(block, anthropic.types.TextBlock)),
+        ""
+    )
 
     # # 디버깅용 - 실제 응답 확인
     # print("=== Claude 응답 ===")
