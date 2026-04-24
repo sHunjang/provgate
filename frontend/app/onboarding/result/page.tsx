@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 // useEffect: 컴포넌트 렌더링 후 API 호출에 사용
 // useState: 결과 데이터 상세 관리
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 // useRouter: 페이지 이동
 // useSearchParams: URL 쿼리 파라미터 읽기
@@ -45,6 +45,10 @@ function ResultContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
+    // API 중복 호출 방지용 ref
+    // useRef: 리렌더링 없이 값을 유지하는 Hook
+    const hasCalledRef = useRef(false);
+
     // 현재 로그인한 유저 정보
     const { user } = useAuth();
 
@@ -66,7 +70,16 @@ function ResultContent() {
     const [error, setError] = useState<string | null>(null);
 
     // 컴포넌트 마운트 시 온보딩 완료 API 호출
+    // hasCalledRef로 중복 호출 방지
     useEffect(() => {
+        // 이미 호출했으면 재실행 방지
+        if (hasCalledRef.current) return;
+        // 유저 정보가 없으면 대기
+        if (!user) return;
+
+        hasCalledRef.current = true;
+
+        // 함수를 useEffect 안으로 이동
         const completeOnboarding = async () => {
             try {
                 setLoading(true);
@@ -75,7 +88,6 @@ function ResultContent() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        // 임시 이메일 - 나중에 인증 붙이면 교체
                         email: user?.email || "",
                         declared_level: level,
                         answers,
@@ -86,7 +98,6 @@ function ResultContent() {
                 if (!res.ok) throw new Error("온보딩 완료 처리에 실패했습니다.");
 
                 const data = await res.json();
-
                 setResult(data);
             } catch {
                 setError("결과를 불러오는 중 오류가 발생했습니다.");
@@ -117,7 +128,7 @@ function ResultContent() {
                 <div className="text-center">
                     <div className="text-5xl mb-4">😢</div>
                     <p className="text-lg text-gray-600">{error}</p>
-                    <button 
+                    <button
                         onClick={() => router.push("/")}
                         className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg"
                     >

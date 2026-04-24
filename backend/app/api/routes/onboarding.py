@@ -214,7 +214,13 @@ async def complete_onboarding(
     request: OnboardingCompleteRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    
+    # 이메일 검증 - 빈 이메일이면 저장 안함
+    if not request.email or request.email.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="이메일이 필요합니다. 로그인 후 다시 시도해주세요."
+        )
+
     # 점수 계산
     # zip(): 두 리스트를 쌍으로 묶어서 순회
     # 예: zip([0,1,2], [0,2,2]) -> (0,0), (1,2), (2,2)
