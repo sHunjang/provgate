@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 // useEffect: 컴포넌트 렌더링 후 API 호출에 사용
 // useState: 결과 데이터 상세 관리
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 // useRouter: 페이지 이동
 // useSearchParams: URL 쿼리 파라미터 읽기
@@ -46,7 +46,12 @@ function ResultContent() {
     const router = useRouter();
 
     // 현재 로그인한 유저 정보
-    const { user } = useAuth();
+    // authLoading: Supabase에서 유저 정보를 가져오는 중인지 여부
+    const { user, loading: authLoading } = useAuth();
+
+    // API 중복 호출 방지용 ref
+    // useRef: 리렌더링 없이 값을 유지하는 Hook
+    const hasCalledRef = useRef(false);
 
     // URL 쿼리 파라미터에서 데이터 파싱
     const level = searchParams.get("level") || "beginner";
@@ -67,6 +72,21 @@ function ResultContent() {
 
     // 컴포넌트 마운트 시 온보딩 완료 API 호출
     useEffect(() => {
+        // authLoading이 끝날 때까지 대기
+        if (authLoading) return;
+        
+        // 이미 호출했으면 재실행 방지
+        if (hasCalledRef.current) return;
+        
+        // 유저 정보가 없으면 (비로그인) 에러 처리
+        if (!user) {
+            setError("로그인이 필요합니다.");
+            setLoading(false);
+            return;
+        }
+
+        hasCalledRef.current = true;
+
         const completeOnboarding = async () => {
             try {
                 setLoading(true);
@@ -96,9 +116,9 @@ function ResultContent() {
         };
 
         completeOnboarding();
-    }, [user]);
+    }, [user, authLoading]);
 
-    // 로딩 화면
+    // 로딩 화면 - user 로딩 중일 때도 표시
     if (loading) {
         return (
             <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
@@ -117,7 +137,7 @@ function ResultContent() {
                 <div className="text-center">
                     <div className="text-5xl mb-4">😢</div>
                     <p className="text-lg text-gray-600">{error}</p>
-                    <button 
+                    <button
                         onClick={() => router.push("/")}
                         className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg"
                     >

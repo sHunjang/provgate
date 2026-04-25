@@ -34,7 +34,13 @@ export default function ProblemPage() {
     const router = useRouter();
 
     // 현재 로그인한 유저 정보
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
+
+    // 초기 로드 완료 여부 추적
+    // const hasFetchRef = useRef(false);
+
+    // 이전 이메일 추적용 ref
+    // const prevEmailRef = useRef<string>("");
 
     // 문제 목록 상태
     const [problems, setProblems] = useState<Problem[]>([]);
@@ -51,20 +57,46 @@ export default function ProblemPage() {
     // 에러 상태
     const [error, setError] = useState<string | null>(null);
 
-    // 컴포넌트 마운트 시 문제 목록 API 호출
+    // 컴포넌트 마운트 시 문제 목록 API 호출 -> 초기 로드 + 난이도 변경 시 조회
     useEffect(() => {
+        // 인증 로딩 중이면 대기
+        if (authLoading) return;
+
+        // const email = user?.email || "";
+
+        // // 이메일이 같고 selectedLevel도 같으면 재조회 안 함
+        // if (email === prevEmailRef.current && hasFetchRef.current) return;
+
+        // // 난이도 필터 변경 시에는 항상 재조회
+        // // 초기 로드 시에는 1번만 조회
+        // prevEmailRef.current = email;
+        // hasFetchRef.current = true;
+
         const fetchProblems = async () => {
             try {
                 setLoading(true);
 
                 // 난이도 필터 적용
                 const level = selectedLevel || "beginner";
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/problems/${level}`);
+
+                // 이메일을 쿼리 파라미터로 전달 -> API 1번으로 완료 여부까지 조회
+                const email = user?.email || "";
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/problems/${level}?email=${encodeURIComponent(email)}`,
+                );
 
                 if (!res.ok) throw new Error("문제 목록을 불러오지 못했습니다.");
 
                 const data = await res.json();
                 setProblems(data.problems);
+
+                // 백엔드에서 완료 여부를 이미 포함해서 반환
+                // is_completed 필드로 완료된 문제 ID 추출
+                const completed = data.problems
+                    .filter((p: Problem & { is_completed: boolean }) => p.is_completed)
+                    .map((p: Problem & { is_completed: boolean }) => p.id);
+
+                setCompletedIds(completed);
             } catch {
                 setError("문제 목록을 불러오는 중 오류가 발생했습니다.");
             } finally {
@@ -73,29 +105,7 @@ export default function ProblemPage() {
         };
 
         fetchProblems();
-    }, [selectedLevel]);
-
-    // 로그인한 유저의 완료된 문제 목록 조회
-    useEffect(() => {
-        const fetchCompletedProblems = async () => {
-            // 비로그인 시 완료 목록 조회 안 함
-            if (!user?.email) return;
-
-            try {
-                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/problems/completed/${user.email}`);
-                if (!res.ok) return;
-
-                const data = await res.json();
-                // data가 없거나 배열이 없을 때 빈 배열로 처리
-                setCompletedIds(data.completed_problem_ids ?? []);
-            } catch {
-                console.error("완료 목록 조회 실패");
-                setCompletedIds([]);
-            }
-        };
-
-        fetchCompletedProblems();
-    }, [user]);
+    }, [selectedLevel, authLoading]);
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
@@ -153,9 +163,9 @@ export default function ProblemPage() {
                                             ${
                                                 isCompleted
                                                     ? // 완료된 문제: 초록색 테두리
-                                                    "border-green-400 dark:border-green-600"
+                                                      "border-green-400 dark:border-green-600"
                                                     : // 미완료 문제: 기본 테두리
-                                                    "border-gray-200 dark:border-gray-700"
+                                                      "border-gray-200 dark:border-gray-700"
                                             }`}
                                     >
                                         <div className="flex items-center justify-between">
