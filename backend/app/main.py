@@ -1,12 +1,15 @@
 # FastAPI: 웹 프레임워크 본체
 # 요청을 받고 응답을 돌려주는 모든 흐름의 시작점
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 # DB 연결 테스트용 임포트 추가
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from fastapi import Depends
+
+# 에러 응답 형식
+from fastapi.responses import JSONResponse
 
 # CORS 미들웨어: 다른 도메인에서 오는 요청을 허용하는 설정
 # 없으면 프론트엔드(localhost:3000)에서 백엔드(localhost:8000)로
@@ -51,6 +54,20 @@ app.add_middleware(
     allow_methods=["*"],      # GET, POST, PUT, DELETE 모두 허용
     allow_headers=["*"],      # 모든 헤더 허용
 )
+
+# 전역 에러 핸들러
+# 예상치 못한 500 에러를 일관된 형식으로 반환
+# Exception을 상속한 모든 에러를 잡아줌
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+
+    # 에러 로깅 (Railway 로그에서 확인 가능)
+    print(f"[전역 에러] {request.method} {request.url}: {exc}")
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "서버 오류가 발생했습니다. 잠시 후 다시 시도하세요."}
+    )
 
 # 라우터 등록
 # prefix 없이 등록하는 이유: 라우터 자체에 /api/onboarding prefix가 이미 있음

@@ -45,12 +45,13 @@ function ResultContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
+    // 현재 로그인한 유저 정보
+    // authLoading: Supabase에서 유저 정보를 가져오는 중인지 여부
+    const { user, loading: authLoading } = useAuth();
+
     // API 중복 호출 방지용 ref
     // useRef: 리렌더링 없이 값을 유지하는 Hook
     const hasCalledRef = useRef(false);
-
-    // 현재 로그인한 유저 정보
-    const { user } = useAuth();
 
     // URL 쿼리 파라미터에서 데이터 파싱
     const level = searchParams.get("level") || "beginner";
@@ -70,16 +71,22 @@ function ResultContent() {
     const [error, setError] = useState<string | null>(null);
 
     // 컴포넌트 마운트 시 온보딩 완료 API 호출
-    // hasCalledRef로 중복 호출 방지
     useEffect(() => {
+        // authLoading이 끝날 때까지 대기
+        if (authLoading) return;
+        
         // 이미 호출했으면 재실행 방지
         if (hasCalledRef.current) return;
-        // 유저 정보가 없으면 대기
-        if (!user) return;
+        
+        // 유저 정보가 없으면 (비로그인) 에러 처리
+        if (!user) {
+            setError("로그인이 필요합니다.");
+            setLoading(false);
+            return;
+        }
 
         hasCalledRef.current = true;
 
-        // 함수를 useEffect 안으로 이동
         const completeOnboarding = async () => {
             try {
                 setLoading(true);
@@ -88,6 +95,7 @@ function ResultContent() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
+                        // 임시 이메일 - 나중에 인증 붙이면 교체
                         email: user?.email || "",
                         declared_level: level,
                         answers,
@@ -98,6 +106,7 @@ function ResultContent() {
                 if (!res.ok) throw new Error("온보딩 완료 처리에 실패했습니다.");
 
                 const data = await res.json();
+
                 setResult(data);
             } catch {
                 setError("결과를 불러오는 중 오류가 발생했습니다.");
@@ -107,9 +116,9 @@ function ResultContent() {
         };
 
         completeOnboarding();
-    }, [user]);
+    }, [user, authLoading]);
 
-    // 로딩 화면
+    // 로딩 화면 - user 로딩 중일 때도 표시
     if (loading) {
         return (
             <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">

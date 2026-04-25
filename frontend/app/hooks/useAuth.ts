@@ -15,7 +15,7 @@ export function useAuth() {
     const [user, setUser] = useState<User | null>(null);
 
     // 로딩 상태 (인증 확인 중)
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const supabase = createClient();

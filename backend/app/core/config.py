@@ -5,6 +5,10 @@
 # BaseSettings를 상속하면 .env 파일을 자동으로 읽어와줌
 from pydantic_settings import BaseSettings
 
+# 서버 시작 시 필수 환경변수 누락되면 즉시 에러 발생
+# 런타임에 에러나는 것보다 시작 시점에 잡는 게 훨씬 좋음
+from  pydantic import field_validator
+
 class Settings(BaseSettings):
     
     # 앱 기본 정보 - 나중에 자동 생성되는 API 문서에 표시됨
@@ -18,6 +22,30 @@ class Settings(BaseSettings):
 
     # Claude API 키 - 힌트/게이트 문제 생성에 사용
     ANTHROPIC_API_KEY: str = ""
+
+    # DATABASE_URL 검증
+    # 서버 시작 시 빈 값이면 즉시 에러 발생
+    @field_validator("DATABASE_URL", mode="before")
+    def validate_database_url(cls, v):
+        if not v:
+            raise ValueError(
+                "DATABASE_URL이 설정되지 않았습니다. "
+                ".env 파일을 확인해주세요."
+            )
+        
+        return v
+
+    # ANTHROPIC_API_KEY 검증
+    @field_validator("ANTHROPIC_API_KEY", mode="before")
+    def validate_anthropic_api_key(cls, v):
+
+        if not v:
+            raise ValueError(
+                "ANTHROPIC_API_KEY가 설정되지 않았습니다. "
+                ".env 파일을 확인해주세요."
+            )
+        
+        return v
 
     class Config:
         # 이 파일을 읽어서 위 변수들을 채워줌

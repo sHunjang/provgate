@@ -9,9 +9,13 @@ router = APIRouter(prefix="/api/problems", tags=["problems"])
 
 
 # GET /api/problems/{level}
-# 수준별 문제 목록 조회
+# 수준별 문제 목록 조회 + 완료 여부 포함
 @router.get("/{level}")
-async def get_problems(level: str, db: AsyncSession = Depends(get_db)):
+async def get_problems(
+    level: str,
+    email: str = "",    # 쿼리 파라미터로 이메일 받기
+    db: AsyncSession = Depends(get_db)
+    ):
 
     # 유효한 수준인지 검증 - 딕셔너리로 O(1) 조회
     valid_levels = {"beginner", "intermediate", "advanced"}
@@ -35,10 +39,30 @@ async def get_problems(level: str, db: AsyncSession = Depends(get_db)):
         {"level": level}
     )
 
-
     # 결과를 딕셔너리 리스트로 변환
     # _mapping: SQLAlchemy Row를 딕셔너리처럼 접근할 수 있게 해줌
     problems = [dict(row._mapping) for row in result.fetchall()]
+
+    # 완료된 문제 ID 조회 (이메일이 있을 때만)
+    # email이 없으면 빈 리스트 반환
+    completed_ids = []
+    
+    if email:
+        completed_result = await db.execute(
+            text("""
+                SELECT DISTINCT s.problem_id
+                FROM submissions s
+                JOIN users u ON s.user_id = u.id
+                WHERE u.email = :email
+                AND s.gate_passed = TRUE
+            """),
+            {"email": email}
+        )
+        completed_ids = [str(row.problem_id) for row in completed_result.fetchall()]
+
+    # 문제별 완료 여부 추가
+    for problem in problems:
+        problem["is_completed"] = str(problem["id"]) in completed_ids
 
     return {
         "level": level,
