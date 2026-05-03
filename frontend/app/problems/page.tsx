@@ -14,6 +14,8 @@ type Problem = {
     level: string;
     concept_tag: string;
     order_idx: number;
+    status: "not_started" | "in_progress" | "completed";
+    is_completed: boolean;
 };
 
 // 난이도별 스타일 - 딕셔너리로 O(1) 조회
@@ -46,7 +48,7 @@ export default function ProblemPage() {
     const [problems, setProblems] = useState<Problem[]>([]);
 
     // 완료된 문제 ID 목록
-    const [completedIds, setCompletedIds] = useState<string[]>([]);
+    // const [completedIds, setCompletedIds] = useState<string[]>([]);
 
     // 선택된 난이도 필터 (null이면 전체)
     const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -92,11 +94,11 @@ export default function ProblemPage() {
 
                 // 백엔드에서 완료 여부를 이미 포함해서 반환
                 // is_completed 필드로 완료된 문제 ID 추출
-                const completed = data.problems
-                    .filter((p: Problem & { is_completed: boolean }) => p.is_completed)
-                    .map((p: Problem & { is_completed: boolean }) => p.id);
+                // const completed = data.problems
+                //     .filter((p: Problem & { is_completed: boolean }) => p.is_completed)
+                //     .map((p: Problem & { is_completed: boolean }) => p.id);
 
-                setCompletedIds(completed);
+                // setCompletedIds(completed);
             } catch {
                 setError("문제 목록을 불러오는 중 오류가 발생했습니다.");
             } finally {
@@ -152,54 +154,60 @@ export default function ProblemPage() {
                         ) : (
                             problems.map((problem, idx) => {
                                 // 완료된 문제 여부 확인
-                                const isCompleted = completedIds.includes(problem.id);
+                                const isCompleted = problem.status === "completed";
+                                const isInProgress = problem.status === "in_progress";
                                 return (
                                     <div
                                         key={problem.id}
                                         onClick={() => router.push(`/problems/${problem.id}`)}
                                         className={`bg-white dark:bg-gray-800 rounded-xl p-6 cursor-pointer
-                                            hover:bg-gray-50 dark:hover:bg-gray-700 transition-all
-                                            border hover:border-indigo-500
-                                            ${
-                                                isCompleted
-                                                    ? // 완료된 문제: 초록색 테두리
-                                                      "border-green-400 dark:border-green-600"
-                                                    : // 미완료 문제: 기본 테두리
-                                                      "border-gray-200 dark:border-gray-700"
-                                            }`}
+                hover:bg-gray-50 dark:hover:bg-gray-700 transition-all
+                border hover:border-indigo-500
+                ${
+                    isCompleted
+                        ? "border-green-400 dark:border-green-600"
+                        : isInProgress
+                          ? "border-yellow-400 dark:border-yellow-600"
+                          : "border-gray-200 dark:border-gray-700"
+                }`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                {/* 완료 여부에 따라 번호 또는 체크 표시 */}
+                                                {/* 상태에 따라 아이콘 변경 */}
                                                 {isCompleted ? (
                                                     <span className="text-green-500 text-lg">✅</span>
+                                                ) : isInProgress ? (
+                                                    <span className="text-yellow-500 text-lg">⏳</span>
                                                 ) : (
                                                     <span className="text-gray-400 dark:text-gray-500 font-mono text-sm">
                                                         #{String(idx + 1).padStart(2, "0")}
                                                     </span>
                                                 )}
-                                                {/* 문제 제목 */}
                                                 <h2 className="font-semibold text-gray-900 dark:text-white">
                                                     {problem.title}
                                                 </h2>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {/* 완료 뱃지 */}
+                                                {/* 상태 뱃지 */}
                                                 {isCompleted && (
                                                     <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium">
                                                         완료
                                                     </span>
                                                 )}
+                                                {isInProgress && (
+                                                    <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 font-medium">
+                                                        진행 중
+                                                    </span>
+                                                )}
                                                 {/* 난이도 뱃지 */}
                                                 <span
                                                     className={`text-xs px-3 py-1 rounded-full font-medium
-                                                    ${levelStyle[problem.level]}`}
+                        ${levelStyle[problem.level]}`}
                                                 >
                                                     {problem.concept_tag}
                                                 </span>
                                             </div>
                                         </div>
-                                        {/* 문제 설명 미리보기 */}
                                         <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 line-clamp-2">
                                             {problem.description}
                                         </p>

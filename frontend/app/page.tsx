@@ -67,17 +67,19 @@ export default function Home() {
 
     // 시작 버튼 핸들러
     const handleStart = () => {
-        // 비로그인 시 로그인 페이지로
+        if (mode === "practice") {
+            // 문제 풀기는 로그인 없어도 목록 볼 수 있음
+            router.push("/problems");
+            return;
+        }
+
+        // 진단하기는 로그인 필요
         if (!user) {
             router.push("/auth/login");
             return;
         }
 
-        if (mode === "practice") {
-            // 문제 풀기 -> 문제 목록으로 바로 이동
-            router.push("/problems");
-        } else if (mode === "diagnose" && selectedLevel) {
-            // 진단하기 -> 퀴즈 페이지로 이동
+        if (mode === "diagnose" && selectedLevel) {
             router.push(`/onboarding/quiz?level=${selectedLevel}`);
         }
     };
@@ -185,26 +187,28 @@ export default function Home() {
                 )}
 
                 {/* 비로그인 안내 */}
-                {!user && mode && <p className="text-center text-sm text-red-500 mb-3">🔐 로그인이 필요해요</p>}
+                {!user && mode === "diagnose" && (
+                    <p className="text-center text-sm text-red-500 mb-3">🔐 진단하기는 로그인이 필요해요</p>
+                )}
 
                 {/* 시작 버튼 */}
                 <button
                     onClick={handleStart}
                     disabled={!mode || (mode === "diagnose" && !selectedLevel)}
                     className={`w-full py-4 rounded-xl font-semibold text-lg transition-all
-                        ${
-                            !mode || (mode === "diagnose" && !selectedLevel)
-                                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
-                        }`}
+        ${
+            !mode || (mode === "diagnose" && !selectedLevel)
+                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+        }`}
                 >
-                    {!user && mode
-                        ? "로그인 후 시작하기 🔐"
-                        : mode === "practice"
-                          ? "문제 풀러 가기 →"
-                          : mode === "diagnose" && selectedLevel
-                            ? "진단 시작하기 →"
-                            : "위에서 선택해주세요"}
+                    {mode === "practice"
+                        ? "문제 풀러 가기 →"
+                        : !user && mode === "diagnose"
+                        ? "로그인 후 진단하기 🔐"
+                        : mode === "diagnose" && selectedLevel
+                        ? "진단 시작하기 →"
+                        : "위에서 선택해주세요"}
                 </button>
             </div>
         </main>

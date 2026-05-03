@@ -144,6 +144,8 @@ export default function ProblemPage() {
     const handleRun = async () => {
         if (!problem) return;
 
+        // 비로그인 시 코드 실행은 가능하지만
+        // 게이트(제출)는 로그인 필요 안내
         setRunning(true);
         setTestResult(null);
 
@@ -154,6 +156,12 @@ export default function ProblemPage() {
 
         // 모든 테스트 통과 시 게이트 모달 자동 실행
         if (result.success) {
+            if (!user) {
+                // 비로그인 시 로그인 안내
+                alert("🔐 제출하려면 로그인이 필요해요!");
+                router.push("/auth/login");
+                return;
+            }
             setGateOpen(true);
         }
     };
@@ -161,6 +169,12 @@ export default function ProblemPage() {
     // 힌트 보기 핸들러
     const handleHint = async () => {
         if (hintStep >= 3 || !problem) return;
+
+        // 비로그인 시 로그인 페이지로
+        if (!user) {
+            router.push("/auth/login");
+            return;
+        }
 
         const nextStep = hintStep + 1;
         setHintLoading(true);
@@ -406,6 +420,12 @@ export default function ProblemPage() {
                             className="mt-2 py-3 rounded-xl font-semibold transition-all bg-green-600 text-white hover:bg-green-700"
                             onClick={async () => {
                                 if (!problem) return;
+
+                                // 비로그인 시 로그인 페이지로
+                                if (!user) {
+                                    router.push("/auth/login");
+                                    return;
+                                }
 
                                 // 소요 시간 계산 (초 단위)
                                 const timeSpentSec = Math.floor((Date.now() - startTime) / 1000);

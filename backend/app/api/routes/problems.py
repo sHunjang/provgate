@@ -47,22 +47,57 @@ async def get_problems(
     # email이 없으면 빈 리스트 반환
     completed_ids = []
     
+    # if email:
+    #     completed_result = await db.execute(
+    #         text("""
+    #             SELECT DISTINCT s.problem_id
+    #             FROM submissions s
+    #             JOIN users u ON s.user_id = u.id
+    #             WHERE u.email = :email
+    #             AND s.gate_passed = TRUE
+    #         """),
+    #         {"email": email}
+    #     )
+    #     completed_ids = [str(row.problem_id) for row in completed_result.fetchall()]
+
+    # # 문제별 완료 여부 추가
+    # for problem in problems:
+    #     problem["is_completed"] = str(problem["id"]) in completed_ids
+
+    # 완료된 문제 ID 조회 -> 진행 상태 조회로 변경
     if email:
-        completed_result = await db.execute(
+        status_result = await db.execute(
             text("""
-                SELECT DISTINCT s.problem_id
+                SELECT s.problem_id,
+                    CASE
+                        WHEN s.gate_passed = TRUE THEN 'completed'
+                        ELSE 'in_progress'
+                    END as status
                 FROM submissions s
                 JOIN users u ON s.user_id = u.id
                 WHERE u.email = :email
-                AND s.gate_passed = TRUE
             """),
             {"email": email}
         )
-        completed_ids = [str(row.problem_id) for row in completed_result.fetchall()]
 
-    # 문제별 완료 여부 추가
+        # 문제별 상태를 딕셔너리로 저장
+        problem_status = {
+            str(row.problem_id): row.status
+            for row in status_result.fetchall()
+        }
+    
     for problem in problems:
-        problem["is_completed"] = str(problem["id"]) in completed_ids
+        pid = str(problem["id"])
+        
+        if email:
+            status = problem_status.get(pid, "not_started")
+        else:
+            status = "not_started"
+        
+        problem["status"] = status
+
+        # 기존 is_completed도 유지
+        problem["is_completed"] = status == "completed"
 
     return {
         "level": level,
