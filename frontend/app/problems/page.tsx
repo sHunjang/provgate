@@ -59,6 +59,32 @@ export default function ProblemPage() {
     // 에러 상태
     const [error, setError] = useState<string | null>(null);
 
+    // 유저 확정 수준 조회 후 selectedLevel 초기값 설정
+    useEffect(() => {
+        const fetchUserLevel = async () => {
+            if (!user?.email) return;
+
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/user-level?email=${encodeURIComponent(user.email)}`,
+                );
+
+                if (!res.ok) return;
+
+                const data = await res.json();
+
+                // 온보딩 기록이 있으면 confirmed_level로 초기값 설정
+                if (data.has_onboarding && data.confirmed_level) {
+                    setSelectedLevel(data.confirmed_level);
+                }
+            } catch {
+                console.error("유저 수준 조회 실패");
+            }
+        };
+
+        fetchUserLevel();
+    }, [user]);
+
     // 컴포넌트 마운트 시 문제 목록 API 호출 -> 초기 로드 + 난이도 변경 시 조회
     useEffect(() => {
         // 인증 로딩 중이면 대기

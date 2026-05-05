@@ -319,3 +319,52 @@ async def complete_onboarding(
         "ratio": round(ratio * 100, 1),     # 퍼센트로 변환
         "roadmap": roadmap[confirmed_level]
     }
+
+
+# GET /api/onboarding/user-level
+# 로그인한 유저의 수준 문제 목록 조회
+@router.get("/user-level")
+async def get_user_level(
+    email: str,
+    db: AsyncSession = Depends(get_db)
+):
+    
+    # 이메일 검증
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="이메일이 필요합니다."
+        )
+    
+    # DB에서 유저 수준 조회
+    from sqlalchemy import text
+    result = await db.execute(
+        text("""
+            SELECT confirmed_level, declared_level, onboarding_score
+            FROM users
+            WHERE email = :email
+        """),
+        {"email": email}
+    )
+
+    user = result.fetchone()
+
+
+    # 온보딩 기록이 없으면 null 반환
+    if not user:
+        return {
+            "has_onboarding": False,
+            "confirmed_level": None,
+            "declared_level": None,
+            "onboarding_score": None,
+        }
+    
+    user_data = dict(user._mapping)
+
+
+    return {
+        "has_onboarding": True,
+        "confirmed_level": user_data["confirmed_level"],
+        "declared_level": user_data["declared_level"],
+        "onboarding_score": user_data["onboarding_score"],
+    }
