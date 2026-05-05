@@ -38,17 +38,8 @@ export default function ProblemPage() {
     // 현재 로그인한 유저 정보
     const { user, loading: authLoading } = useAuth();
 
-    // 초기 로드 완료 여부 추적
-    // const hasFetchRef = useRef(false);
-
-    // 이전 이메일 추적용 ref
-    // const prevEmailRef = useRef<string>("");
-
     // 문제 목록 상태
     const [problems, setProblems] = useState<Problem[]>([]);
-
-    // 완료된 문제 ID 목록
-    // const [completedIds, setCompletedIds] = useState<string[]>([]);
 
     // 선택된 난이도 필터 (null이면 전체)
     const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -90,16 +81,6 @@ export default function ProblemPage() {
         // 인증 로딩 중이면 대기
         if (authLoading) return;
 
-        // const email = user?.email || "";
-
-        // // 이메일이 같고 selectedLevel도 같으면 재조회 안 함
-        // if (email === prevEmailRef.current && hasFetchRef.current) return;
-
-        // // 난이도 필터 변경 시에는 항상 재조회
-        // // 초기 로드 시에는 1번만 조회
-        // prevEmailRef.current = email;
-        // hasFetchRef.current = true;
-
         const fetchProblems = async () => {
             try {
                 setLoading(true);
@@ -117,14 +98,6 @@ export default function ProblemPage() {
 
                 const data = await res.json();
                 setProblems(data.problems);
-
-                // 백엔드에서 완료 여부를 이미 포함해서 반환
-                // is_completed 필드로 완료된 문제 ID 추출
-                // const completed = data.problems
-                //     .filter((p: Problem & { is_completed: boolean }) => p.is_completed)
-                //     .map((p: Problem & { is_completed: boolean }) => p.id);
-
-                // setCompletedIds(completed);
             } catch {
                 setError("문제 목록을 불러오는 중 오류가 발생했습니다.");
             } finally {
@@ -133,7 +106,7 @@ export default function ProblemPage() {
         };
 
         fetchProblems();
-    }, [selectedLevel, authLoading]);
+    }, [selectedLevel, authLoading, user?.email]);
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
@@ -193,8 +166,8 @@ export default function ProblemPage() {
                     isCompleted
                         ? "border-green-400 dark:border-green-600"
                         : isInProgress
-                          ? "border-yellow-400 dark:border-yellow-600"
-                          : "border-gray-200 dark:border-gray-700"
+                        ? "border-yellow-400 dark:border-yellow-600"
+                        : "border-gray-200 dark:border-gray-700"
                 }`}
                                     >
                                         <div className="flex items-center justify-between">

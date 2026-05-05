@@ -116,7 +116,7 @@ function ResultContent() {
         };
 
         completeOnboarding();
-    }, [user, authLoading]);
+    }, [user, authLoading, answers, correctAnswers, level]);
 
     // 로딩 화면 - user 로딩 중일 때도 표시
     if (loading) {
