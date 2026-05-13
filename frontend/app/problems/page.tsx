@@ -114,6 +114,13 @@ export default function ProblemPage() {
             <div className="max-w-4xl mx-auto">
                 {/* 헤더 */}
                 <div className="mb-8">
+                    {/* ProvGate 로고 - 클릭 시 홈으로 이동 */}
+                    <button
+                        onClick={() => router.push("/")}
+                        className="text-indigo-500 font-bold text-sm mb-3 hover:text-indigo-400 transition-all"
+                    >
+                        ProvGate
+                    </button>
                     <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">문제 목록</h1>
                     <p className="text-gray-500 dark:text-gray-400">수준에 맞는 문제를 선택해서 풀어보세요</p>
                 </div>
@@ -167,8 +174,8 @@ export default function ProblemPage() {
                     isCompleted
                         ? "border-green-400 dark:border-green-600"
                         : isInProgress
-                        ? "border-yellow-400 dark:border-yellow-600"
-                        : "border-gray-200 dark:border-gray-700"
+                          ? "border-yellow-400 dark:border-yellow-600"
+                          : "border-gray-200 dark:border-gray-700"
                 }`}
                                     >
                                         <div className="flex items-center justify-between">
