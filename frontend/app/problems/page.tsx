@@ -36,7 +36,7 @@ export default function ProblemPage() {
     const router = useRouter();
 
     // 현재 로그인한 유저 정보
-    const { user, loading: authLoading } = useAuth();
+    const { user } = useAuth();
 
     // 문제 목록 상태
     const [problems, setProblems] = useState<Problem[]>([]);
