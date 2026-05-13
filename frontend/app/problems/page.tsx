@@ -77,9 +77,10 @@ export default function ProblemPage() {
     }, [user]);
 
     // 컴포넌트 마운트 시 문제 목록 API 호출 -> 초기 로드 + 난이도 변경 시 조회
+    // 비로그인 상황에서 문제 목록 이동 시 로딩 시간 지연 상황 발생
     useEffect(() => {
         // 인증 로딩 중이면 대기
-        if (authLoading) return;
+        // if (authLoading) return;
 
         const fetchProblems = async () => {
             try {
@@ -106,7 +107,7 @@ export default function ProblemPage() {
         };
 
         fetchProblems();
-    }, [selectedLevel, authLoading, user?.email]);
+    }, [selectedLevel, user?.email]);
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">

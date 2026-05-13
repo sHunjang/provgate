@@ -25,6 +25,11 @@ export default function SignupPage() {
     // 로딩 상태
     const [loading, setLoading] = useState(false);
 
+    // 회원가입 완료 상태
+    // true: 이메일 인증 안내 화면 표시
+    // false: 회원가입 폼 표시
+    const [isSignedUp, setIsSignedUp] = useState(false);
+
     // 회원가입 처리 함수
     const handleSignup = async () => {
         try {
@@ -32,6 +37,7 @@ export default function SignupPage() {
             setError(null);
 
             // Supabase Auth로 회원가입
+            // Supabase가 자동으로 인증 메일 발송
             const { error } = await supabase.auth.signUp({
                 email,
                 password,
@@ -39,8 +45,10 @@ export default function SignupPage() {
 
             if (error) throw error;
 
-            // 회원가입 성공 시 온보딩으로 이동
-            router.push("/");
+            // 회원가입 성공 시 이메일 인증 안내 화면으로 전환
+            // router.push("/") 대신 isSignedUp을 true로 변경
+            // 유저가 인증 메일 확인 후 로그인할 수 있도록 안내
+            setIsSignedUp(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
                 setError(err.message);
@@ -49,6 +57,54 @@ export default function SignupPage() {
             setLoading(false);
         }
     };
+
+    // 회원가입 완료 시 이메일 인증 안내 화면
+    // isSignedUp이 true일 때만 렌더링
+    if (isSignedUp) {
+        return (
+            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
+                <div className="w-full max-w-md">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm text-center">
+                        {/* 이메일 아이콘 */}
+                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-3xl">📧</span>
+                        </div>
+
+                        {/* 안내 텍스트 */}
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">이메일을 확인해주세요!</h2>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">
+                            {/* 회원가입 시 입력한 이메일 표시 */}
+                            <span className="text-indigo-500 font-medium">{email}</span> 로
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
+                            인증 메일을 발송했습니다.
+                            <br />
+                            메일함을 확인 후 인증 링크를 클릭하면
+                            <br />
+                            로그인이 가능합니다.
+                        </p>
+
+                        {/* 스팸 안내
+                            인증 메일이 스팸함으로 분류될 수 있어서 안내 */}
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-6">
+                            <p className="text-yellow-700 dark:text-yellow-400 text-xs">
+                                📌 메일이 보이지 않으면 스팸함을 확인해주세요.
+                            </p>
+                        </div>
+
+                        {/* 로그인 페이지로 이동 버튼
+                            인증 완료 후 로그인하러 이동 */}
+                        <button
+                            onClick={() => router.push("/auth/login")}
+                            className="w-full py-3 rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+                        >
+                            로그인 하러 가기
+                        </button>
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
