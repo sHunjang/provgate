@@ -234,10 +234,7 @@ Level: {problem_data['level']}
     "test_cases": [
         {{"input": "input value", "output": "expected output"}}
     ],
-    "starter_code": "# starter code template in Korean comments",
-    "hint_1": "first hint in Korean",
-    "hint_2": "second hint in Korean",
-    "hint_3": "third hint in Korean"
+    "starter_code": "# starter code template in Korean comments"
 }}"""
             }
         ]

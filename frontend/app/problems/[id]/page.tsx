@@ -8,6 +8,9 @@ import { useState, useEffect } from "react";
 // /problems/1 -> params.id = "1"
 import { useParams, useRouter } from "next/navigation";
 
+import { createClient } from "@/app/lib/supabase";
+import ThemeToggle from "@/app/components/ThemeToggle";
+
 // 만들어둔 컴포넌트와 훅 임포트
 import CodeEditor from "@/app/components/CodeEditor";
 import { usePyodide } from "@/app/hooks/usePyodide";
@@ -17,6 +20,9 @@ import GateModal from "@/app/components/GateModal";
 
 // useAuth: 현재 로그인한 유저 정보 가져오기
 import { useAuth } from "@/app/hooks/useAuth";
+
+// useTimer 훅 추가
+import { useTimer } from "@/app/hooks/useTimer";
 
 // 테스트 케이스 타입
 type TestCase = {
@@ -111,7 +117,10 @@ export default function ProblemPage() {
     const [gateToken, setGateToken] = useState<string | null>(null);
 
     // 문제 시작 시간 기록 - 소요 시간 계산용
-    const [startTime] = useState<number>(Date.now());
+    // const [startTime] = useState<number>(Date.now());
+
+    // useTimer 훅을 통해 타이머 실행 -> 문제 풀이 소요 시간 측정
+    const { formattedTime, elapsed, isVisible, toggleVisibility } = useTimer();
 
     // Pyodide 훅 - Python 실행 환경
     const { loading: pyodideLoading, error: pyodideError, runCode } = usePyodide();
@@ -248,8 +257,8 @@ export default function ProblemPage() {
         <main className="min-h-screen bg-gray-900 text-white">
             {/* 상단 헤더 */}
             <header className="border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+                {/* 왼쪽: 뒤로가기 + 문제 제목 */}
                 <div className="flex items-center gap-4">
-                    {/* 뒤로가기 */}
                     <button
                         onClick={() => router.push("/problems")}
                         className="text-gray-400 hover:text-white transition-all"
@@ -262,8 +271,22 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
-                {/* Pyodide 로딩 상태 */}
-                <div className="flex items-center gap-2">
+                {/* 가운데: 타이머 + Pyodide 상태 */}
+                <div className="flex items-center gap-4">
+                    {/* 타이머 */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={toggleVisibility}
+                            className="text-xs text-gray-500 hover:text-gray-300 transition-all"
+                        >
+                            {isVisible ? "⏱️ 숨기기" : "⏱️ 타이머"}
+                        </button>
+                        {isVisible && (
+                            <span className="text-sm font-mono text-indigo-400 font-bold">{formattedTime}</span>
+                        )}
+                    </div>
+
+                    {/* Pyodide 로딩 상태 */}
                     {pyodideLoading ? (
                         <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
                     ) : pyodideError ? (
@@ -271,6 +294,30 @@ export default function ProblemPage() {
                     ) : (
                         <span className="text-xs text-green-400">✅ Python 준비 완료</span>
                     )}
+                </div>
+
+                {/* 오른쪽: 유저 정보 + 로그아웃 + 다크모드 */}
+                <div className="flex items-center gap-2">
+                    {/* 유저 이메일 */}
+                    {user && <span className="text-xs text-gray-400 hidden sm:block">{user.email?.split("@")[0]}</span>}
+                    {/* 로그아웃 버튼 */}
+                    {user && (
+                        <button
+                            onClick={async () => {
+                                const supabase = createClient();
+                                await supabase.auth.signOut();
+                                router.push("/auth/login");
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full
+                    text-xs font-medium transition-all border
+                    bg-gray-800 border-gray-600 text-gray-300
+                    hover:bg-gray-700"
+                        >
+                            로그아웃
+                        </button>
+                    )}
+                    {/* 다크모드 토글 */}
+                    <ThemeToggle />
                 </div>
             </header>
 
@@ -428,7 +475,8 @@ export default function ProblemPage() {
                                 }
 
                                 // 소요 시간 계산 (초 단위)
-                                const timeSpentSec = Math.floor((Date.now() - startTime) / 1000);
+                                // const timeSpentSec = Math.floor((Date.now() - startTime) / 1000);
+                                const timeSpentSec = elapsed;
 
                                 try {
                                     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {

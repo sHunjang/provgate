@@ -17,9 +17,9 @@ type SimilarProblem = {
     level: string;
     test_cases: { input: string; output: string }[];
     starter_code: string;
-    hint_1: string;
-    hint_2: string;
-    hint_3: string;
+    // hint_1: string;
+    // hint_2: string;
+    // hint_3: string;
 };
 
 // 통계 타입 정의
