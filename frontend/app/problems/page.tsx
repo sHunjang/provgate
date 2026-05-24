@@ -36,7 +36,7 @@ export default function ProblemPage() {
     const router = useRouter();
 
     // 현재 로그인한 유저 정보
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
 
     // 문제 목록 상태
     const [problems, setProblems] = useState<Problem[]>([]);
@@ -50,49 +50,82 @@ export default function ProblemPage() {
     // 에러 상태
     const [error, setError] = useState<string | null>(null);
 
-    // 유저 확정 수준 조회 후 selectedLevel 초기값 설정
+    // 초기화 완료 여부 플래그
+    // true가 되면 두 번째 useEffect가 동작
+    const [initialized, setInitialized] = useState(false);
+
+    // 초기 로드: 유저 수준 조회 후 문제 목록 한 번에 가져오기
+    // 기존에는 fetchUserLevel → selectedLevel 변경 → fetchProblems 순서로
+    // API가 3~4번 중복 호출되는 문제가 있었음
+    // 개선: 유저 수준 조회 + 문제 목록 조회를 하나의 useEffect로 통합
+    // user.email이 변경될 때만 실행 (로그인/로그아웃 시)
     useEffect(() => {
-        const fetchUserLevel = async () => {
-            if (!user?.email) return;
+        // 인증 로딩 중이면 대기
+        // authLoading이 false가 된 후 user 정보 확정되면 실행
+        if (authLoading) return;
 
+        const initialize = async () => {
             try {
-                const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/user-level?email=${encodeURIComponent(user.email)}`,
-                );
+                setLoading(true);
+                const email = user?.email || "";
 
-                if (!res.ok) return;
+                // 기본 난이도는 beginner
+                // 로그인 유저면 확정 수준으로 덮어씀
+                let level = "beginner";
 
-                const data = await res.json();
-
-                // 온보딩 기록이 있으면 confirmed_level로 초기값 설정
-                if (data.has_onboarding && data.confirmed_level) {
-                    setSelectedLevel(data.confirmed_level);
+                // 로그인 유저면 확정 수준 먼저 조회
+                // 비로그인이면 스킵 (beginner로 기본값 사용)
+                if (email) {
+                    const levelRes = await fetch(
+                        `${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/user-level?email=${encodeURIComponent(email)}`,
+                    );
+                    if (levelRes.ok) {
+                        const levelData = await levelRes.json();
+                        // 온보딩 기록이 있으면 confirmed_level로 초기값 설정
+                        if (levelData.has_onboarding && levelData.confirmed_level) {
+                            level = levelData.confirmed_level;
+                        }
+                    }
                 }
+
+                // selectedLevel 업데이트 (난이도 필터 버튼 UI 반영)
+                setSelectedLevel(level);
+
+                // 문제 목록 조회
+                // 이메일을 쿼리 파라미터로 전달 → API 1번으로 완료 여부까지 조회
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/problems/${level}?email=${encodeURIComponent(email)}`,
+                );
+                if (!res.ok) throw new Error("문제 목록을 불러오지 못했습니다.");
+                const data = await res.json();
+                setProblems(data.problems);
+
+                // 초기화 완료 표시
+                setInitialized(true);
             } catch {
-                console.error("유저 수준 조회 실패");
+                setError("문제 목록을 불러오는 중 오류가 발생했습니다.");
+            } finally {
+                setLoading(false);
             }
         };
 
-        fetchUserLevel();
-    }, [user]);
+        initialize();
+    }, [user?.email, authLoading]); // user.email 변경 시에만 실행 (로그인/로그아웃)
 
-    // 컴포넌트 마운트 시 문제 목록 API 호출 -> 초기 로드 + 난이도 변경 시 조회
-    // 비로그인 상황에서 문제 목록 이동 시 로딩 시간 지연 상황 발생
+    // 난이도 필터 변경 시에만 문제 목록 재조회
+    // 초기 로드는 위 useEffect에서 처리하므로
+    // selectedLevel이 null이면 스킵 (초기값 설정 전)
     useEffect(() => {
-        // 인증 로딩 중이면 대기
-        // if (authLoading) return;
+        if (!initialized || !selectedLevel) return;
 
         const fetchProblems = async () => {
             try {
                 setLoading(true);
 
-                // 난이도 필터 적용
-                const level = selectedLevel || "beginner";
-
-                // 이메일을 쿼리 파라미터로 전달 -> API 1번으로 완료 여부까지 조회
+                // 이메일을 쿼리 파라미터로 전달 → API 1번으로 완료 여부까지 조회
                 const email = user?.email || "";
                 const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/problems/${level}?email=${encodeURIComponent(email)}`,
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/problems/${selectedLevel}?email=${encodeURIComponent(email)}`,
                 );
 
                 if (!res.ok) throw new Error("문제 목록을 불러오지 못했습니다.");
@@ -107,7 +140,13 @@ export default function ProblemPage() {
         };
 
         fetchProblems();
-    }, [selectedLevel, user?.email]);
+        // 난이도 필터 변경 시에만 문제 목록 재조회
+        // initialized, user?.email을 의존성에서 제외하는 이유:
+        // - initialized: 초기화 완료 체크용 플래그로 변경 감지 불필요
+        // - user?.email: 초기 로드 useEffect에서 이미 처리
+        // 두 값 모두 추가하면 중복 API 호출 발생
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedLevel]); // selectedLevel 변경 시에만 실행 (난이도 필터 버튼 클릭)
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
