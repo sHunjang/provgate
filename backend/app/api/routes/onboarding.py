@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Depends
 # 함수 파라미터에 타입 힌트로 사용 (db: AsyncSession)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import text
+
 # Pydantic: 요청/응답 데이터의 타입과 형식을 검증해주는 라이브러리
 # BaseModel을 상속하면 자동으로 타입 체크 + 에러 메세지 생성
 from pydantic import BaseModel
@@ -25,6 +27,7 @@ from app.core.config import settings
 # get_db(): DB 세션을 생성하고 반환하는 제너레이터 함수
 # Depends(get_db)로 등록하면 요청마다 자동으로 세션을 열고 닫아줌
 from app.core.database import get_db
+from app.core.rate_limit import check_rate_limit, record_api_usage
 
 
 # 이 라우터의 모든 엔드포인트는 /api/onboarding 으로 시작함.
@@ -40,11 +43,18 @@ class QuizGenerateRequest(BaseModel):
     # 사용자가 선택한 수준: "beginner", "intermediate", "advanced" 중 하나
     level: str
 
+    # 사용자 이메일 (선택 - 비로그인도 퀴즈 가능)
+    # Rate Limitin은 로그인 유저만 적용
+    email: str = ""
+
 
 # 퀴즈 생성 엔드포인트
 # POST /api/onboarding/quiz/generate
 @router.post("/quiz/generate")
-async def generate_quiz(request: QuizGenerateRequest):
+async def generate_quiz(
+    request: QuizGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+):
     
     # 유효한 수준인지 검증
     # 딕셔너리를 쓰는 이유: O(1) 조회 - if/elif 체인보다 빠르고 깔끔
@@ -60,6 +70,21 @@ async def generate_quiz(request: QuizGenerateRequest):
             status_code=400,
             detail=f"올바르지 않은 수준입니다. beginner/intermediate/advanced 중 하나를 선택하세요."
         )
+
+    # 로그인 유저만 Rate Limiting 적용
+    # 비로그인 유저는 퀴즈 자유롭게 사용 가능
+    if request.email:
+        user_result = await db.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": request.email}
+        )
+
+        user = user_result.fetchone()
+
+        if user:
+            user_id = str(user._mapping["id"])
+            # Rate Limit 체크 - 하루 3회 제한
+            await check_rate_limit(user_id, "quiz", db)
 
     level_desc = level_description[request.level]
 
@@ -140,26 +165,7 @@ Never include any text outside the JSON structure.""",
         ""
     )
 
-    # # 디버깅용 - 실제 응답 확인
-    # print("=== Claude 응답 ===")
-    # print(repr(response_text))
-    # print("==================")
-
-    # Claude가 ```json ... ``` 형식으로 응답할 때 코드 블록 제거
-    # strip(): 앞뒤 공백/줄바꿈 제거
-    # replace(): ```json```과 ```제거
-    
-    # print("=== Claude 응답 ===")
-    # print(repr(response_text[:100]))    # 앞 100 글자만 확인
-    # print("=== 전처리 후 ===")
     response_text = response_text.strip()
-
-    # if response_text.startswith("```json"):
-    #     response_text = response_text[7:]   # ```json 제거 (7글자)
-    # if response_text.startswith("```"):
-    #     response_text = response_text[3:]   # ``` 제거 (3글자)
-    # if response_text.endswith("```"):
-    #     response_text = response_text[:-3]  # 끝의 ``` 제거
 
     # 여러 형태의 코드 블록 마커 제거
     # re.sub으로 더 강력하게 처리 - 줄바꿈 포함 다양한 형태 대응
@@ -168,9 +174,6 @@ Never include any text outside the JSON structure.""",
     response_text = re.sub(r'```\s*', '', response_text)
 
     response_text = response_text.strip()
-
-    # print(repr(response_text))    # 전처리 후
-    # print("==================")
 
     try:
         quiz_data = json.loads(response_text)
@@ -182,7 +185,21 @@ Never include any text outside the JSON structure.""",
             status_code=500,
             detail=f"퀴즈 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         )
-    
+
+    # JSON 파싱 성공 후 사용 기록 저장
+    # 파싱 실패 시 횟수 차감 방지
+    # 로그인 유저만 사용 기록 저장
+    if request.email:
+        user_result = await db.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": request.email}
+        )
+        user = user_result.fetchone()
+
+        if user:
+            user_id = str(user._mapping["id"])
+            await record_api_usage(user_id, "quiz", db)
+            await db.commit()
     
     return {
         "level": request.level,

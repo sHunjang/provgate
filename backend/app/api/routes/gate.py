@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import check_rate_limit, record_api_usage
 
 
 router = APIRouter(prefix="/api/gate", tags=["gate"])
@@ -61,6 +62,21 @@ async def generate_gate(
     db: AsyncSession = Depends(get_db)
 ):
     
+    # DB에서 유저 ID 조회 (Rate Limit 체크용)
+    user_result = await db.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": request.email}
+    )
+    user = user_result.fetchone()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    user_id = str(user._mapping["id"])
+
+    # Rate Limit 체크 - 하루 10회 제한
+    await check_rate_limit(user_id, "gate", db)
+
     # DB에서 원본 문제 정보 조회
     result = await db.execute(
         text("""
@@ -149,7 +165,10 @@ Level: {problem_data['level']}
             status_code=500,
             detail="게이트 문제 생성 중 오류가 발생했습니다."
         )
-    
+
+    # Rate Limit 사용 기록 저장
+    await record_api_usage(user_id, "gate", db)
+
     # 게이트 시도 횟수 업데이트
     await db.execute(
         text("""

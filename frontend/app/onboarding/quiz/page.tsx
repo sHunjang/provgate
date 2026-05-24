@@ -15,6 +15,8 @@ import { useState, useEffect } from "react";
 // "next/router"는 Pages Router용이라 App Router에서 사용 불가
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { useAuth } from "@/app/hooks/useAuth";
+
 // 퀴즈 문항 타입 정의
 type Question = {
     id: number;
@@ -47,6 +49,8 @@ function QuizContent() {
     // 에러 상태
     const [error, setError] = useState<string | null>(null);
 
+    const { user } = useAuth();
+
     // 컴포넌트가 마운트될 때 퀴즈 생성 API 호출
     // useEffect: 컴포넌트 렌더링 후 실행되는 Hook
     // 두 번째 인자 [level]: level이 바뀔 때마다 재실행
@@ -58,8 +62,15 @@ function QuizContent() {
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/quiz/generate`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ level }),
+                    body: JSON.stringify({ level, email: user?.email || "" }),
                 });
+
+                // 429 에러: Rate Limit 초과
+                if (res.status === 429) {
+                    const data = await res.json();
+                    setError(`⚠️ ${data.detail.message} ${data.detail.reset}`);
+                    return;
+                }
 
                 if (!res.ok) throw new Error("퀴즈 생성 실패했습니다.");
 
@@ -79,7 +90,7 @@ function QuizContent() {
         };
 
         fetchQuiz();
-    }, [level]);
+    }, [level, user]);
 
     // 답안 선택 핸들러
     const handleAnswer = (optionIdx: number) => {

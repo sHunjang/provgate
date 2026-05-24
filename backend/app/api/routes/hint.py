@@ -5,10 +5,10 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import anthropic
-import json
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import check_rate_limit, record_api_usage
 
 router = APIRouter(prefix="/api/hint", tags=["hint"])
 
@@ -47,6 +47,24 @@ async def generate_hint(
             detail="힌트 단계는 1, 2, 3 중 하나여야 합니다."
         )
     
+    # DB에서 유저 ID 조회 (Rate Limit 체크용)
+    # email -> user_id 변환
+    user_result = await db.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": request.email}
+    )
+    user = user_result.fetchone()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    
+    user_id = str(user._mapping["id"])
+
+    # Rate Limit 체크 - 하루 20회 제한
+    # 초과 시 429 에러 자동 반환
+    await check_rate_limit(user_id, "hint", db)
+
+
     # DB에서 문제 정보 조회
     result = await db.execute(
         text("SELECT title, description, concept_tag, starter_code FROM problems WHERE id = :id"),
@@ -126,6 +144,11 @@ async def generate_hint(
         if isinstance(block, anthropic.types.TextBlock)),
         ""
     )
+
+    # Rate Limit 사용 기록 저장
+    # check_rate_limit 통과 후 실제 사용 기록을 api_usage 테이블에 저장
+    # Claude API 호출 후에 넣는 이유: API 호출이 실패하면 횟수를 차감하면 안 되기 때문
+    await record_api_usage(user_id, "hint", db)
 
     # 힌트 사용 횟수 DB 기록
     # submissions 테이블에 hint_count 업데이트

@@ -6,6 +6,7 @@ from sqlalchemy import text
 import anthropic
 import json
 from datetime import datetime, timezone
+from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -26,13 +27,16 @@ class SubmitRequest(BaseModel):
     email:str
 
     # 게이트 통과 토큰 -> 없으면 제출 불가
-    token: str
+    token: Optional[str] = None
 
     # 추가
     code: str
 
     # 문제 푸는데 걸린 시간 (초)
     time_spent_sec: int
+
+    # 게이트 건너뛰기 여부 (선택)
+    skip_gate: bool = False
 
 
 # 유사 문제 생성 요청 데이터 형식
@@ -54,75 +58,90 @@ async def submit_solution(
 ):
     
     # 디버그 로그 추가
-    print("=== 제출 디버깅 ===")
-    print(f"token: {request.token}")
-    print(f"problem_id: {request.problem_id}")
-    print(f"email: {request.email}")
-    
-    # 1. 토큰 유효성 검증
-    # 토큰이 존재하고, 사용되지 않았고, 만료되지 않았는지 확인
-    token_result = await db.execute(
-        text("""
-            SELECT gt.id, gt.used, gt.expires_at, u.id as user_id
-            FROM gate_tokens gt
-            JOIN users u ON gt.user_id = u.id
-            WHERE gt.token = :token
-            AND gt.problem_id = :problem_id
-            AND u.email = :email
-        """),
-        {
-            "token": request.token,
-            "problem_id": request.problem_id,
-            "email": request.email,
-        }
+    # print("=== 제출 디버깅 ===")
+    # print(f"token: {request.token}")
+    # print(f"problem_id: {request.problem_id}")
+    # print(f"email: {request.email}")
+
+    # 유저 ID 조회 (skip_gate 여부 관계 없이 항상 필요)
+    user_result = await db.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": request.email}
     )
-    token_data = token_result.fetchone()
+    user = user_result.fetchone()
 
-    # 디버깅 로그
-    print(f"token_data: {token_data}")
-
-    # 토큰이 없으면 제출 불가
-    if not token_data:
-        raise HTTPException(
-            status_code=403,
-            detail="유효하지 않은 토큰입니다. 게이드를 먼저 통과해주세요."
-        )
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
-    token_dict = dict(token_data._mapping)
+    user_id = user._mapping["id"]
 
-    # 이미 사용된 토큰이면 제출 불가
-    if token_dict["used"]:
-        raise HTTPException(
-            status_code=403,
-            detail="이미 사용된 토큰입니다."
+    # skip_gate가 False일 때만 토큰 검증
+    if not request.skip_gate:
+        # 1. 토큰 유효성 검증
+        # 토큰이 존재하고, 사용되지 않았고, 만료되지 않았는지 확인
+        token_result = await db.execute(
+            text("""
+                SELECT gt.id, gt.used, gt.expires_at, u.id as user_id
+                FROM gate_tokens gt
+                JOIN users u ON gt.user_id = u.id
+                WHERE gt.token = :token
+                AND gt.problem_id = :problem_id
+                AND u.email = :email
+            """),
+            {
+                "token": request.token,
+                "problem_id": request.problem_id,
+                "email": request.email,
+            }
         )
-    
-    # 만료된 토크이면 제출 불가
-    if token_dict["expires_at"] < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=403,
-            detail="만료된 토큰입니다. 게이트를 다시 통과해주세요.",
+        token_data = token_result.fetchone()
+
+        # 디버깅 로그
+        # print(f"token_data: {token_data}")
+
+        # 토큰이 없으면 제출 불가
+        if not token_data:
+            raise HTTPException(
+                status_code=403,
+                detail="유효하지 않은 토큰입니다. 게이드를 먼저 통과해주세요."
+            )
+        
+        token_dict = dict(token_data._mapping)
+
+        # 이미 사용된 토큰이면 제출 불가
+        if token_dict["used"]:
+            raise HTTPException(
+                status_code=403,
+                detail="이미 사용된 토큰입니다."
+            )
+        
+        # 만료된 토크이면 제출 불가
+        if token_dict["expires_at"] < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=403,
+                detail="만료된 토큰입니다. 게이트를 다시 통과해주세요.",
+            )
+
+        # user_id = token_dict["user_id"]
+
+
+        # 2. 토큰 사용 처리 - 재사용 방지
+        await db.execute(
+            text("UPDATE gate_tokens SET used = TRUE WHERE token = :token"),
+            {"token": request.token}
         )
-
-    user_id = token_dict["user_id"]
-
-
-    # 2. 토큰 사용 처리 - 재사용 방지
-    await db.execute(
-        text("UPDATE gate_tokens SET used = TRUE WHERE token = :token"),
-        {"token": request.token}
-    )
 
 
     # 3. submissions 테이블 최종 업데이트 (없으면 INSERT, 있으면 UPDATE)
+    # skip_gate면 gate_passed = FALSE, 토큰 통과면 gate_passed = TRUE
     await db.execute(
         text("""
             INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
-            VALUES (:user_id, :problem_id, :code, 0, TRUE, 0, :time_spent_sec)
+            VALUES (:user_id, :problem_id, :code, 0, :gate_passed, 0, :time_spent_sec)
             ON CONFLICT (user_id, problem_id)
             DO UPDATE SET
                 code = :code,
-                gate_passed = TRUE,
+                gate_passed = :gate_passed,
                 time_spent_sec = :time_spent_sec,
                 submitted_at = NOW()
         """),
@@ -131,6 +150,7 @@ async def submit_solution(
             "time_spent_sec": request.time_spent_sec,
             "user_id": user_id,
             "problem_id": request.problem_id,
+            "gate_passed": not request.skip_gate,
         }
     )
 

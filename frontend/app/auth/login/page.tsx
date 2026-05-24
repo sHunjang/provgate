@@ -55,7 +55,13 @@ export default function LoginPage() {
             <div className="w-full max-w-md">
                 {/* 헤더 */}
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Provgate</h1>
+                    {/* ProvGate 로고 - 클릭 시 홈으로 이동 */}
+                    <button
+                        onClick={() => router.push("/")}
+                        className="text-3xl font-bold text-gray-900 dark:text-white mb-2 hover:text-indigo-500 transition-all"
+                    >
+                        Provgate
+                    </button>
                     <p className="text-gray-500 dark:text-gray-400">AI와 함께, 이해는 스스로</p>
                 </div>
 

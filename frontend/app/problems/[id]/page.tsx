@@ -94,6 +94,12 @@ export default function ProblemPage() {
     // 게이트 통과 토큰 -> 최종 제출 시 사용
     const [gateToken, setGateToken] = useState<string | null>(null);
 
+    // 게이트 선택 모달 표시 여부
+    const [showGateChoice, setShowGateChoice] = useState(false);
+
+    // 게이트 건너뛰기 여부
+    const [skipGate, setSkipGate] = useState(false);
+
     // 문제 시작 시간 기록 - 소요 시간 계산용
     // const [startTime] = useState<number>(Date.now());
 
@@ -149,7 +155,7 @@ export default function ProblemPage() {
                 router.push("/auth/login");
                 return;
             }
-            setGateOpen(true);
+            setShowGateChoice(true);
         }
     };
 
@@ -179,6 +185,13 @@ export default function ProblemPage() {
                     email: user?.email || "",
                 }),
             });
+
+            // 429 에러: Rate Limit 초과
+            if (res.status === 429) {
+                const data = await res.json();
+                alert(`⚠️ ${data.detail.message}\n${data.detail.reset}`);
+                return;
+            }
 
             if (!res.ok) throw new Error("힌트 생성 실패");
 
@@ -472,8 +485,45 @@ export default function ProblemPage() {
                         {running ? "실행 중..." : "▶ 코드 실행"}
                     </button>
 
+                    {/* 게이트 선택 모달 */}
+                    {showGateChoice && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                            <div className="bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                                <div className="text-4xl mb-4">🎉</div>
+                                <h2 className="text-xl font-bold text-white mb-2">모든 테스트 통과!</h2>
+                                <p className="text-gray-400 text-sm mb-6">
+                                    이해 확인 게이트를 통과하면 완전히 완료됩니다. 게이트는 같은 개념의 다른 문제로 진짜
+                                    이해를 검증해요.
+                                </p>
+                                <div className="flex flex-col gap-3">
+                                    {/* 게이트 진행 */}
+                                    <button
+                                        onClick={() => {
+                                            setShowGateChoice(false);
+                                            setGateOpen(true);
+                                        }}
+                                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                                    >
+                                        🔍 이해 확인하기
+                                    </button>
+                                    {/* 나중에 하기 */}
+                                    <button
+                                        onClick={() => {
+                                            setShowGateChoice(false);
+                                            // 게이트 없이 제출 가능하도록 임시 토큰 설정
+                                            setSkipGate(true);
+                                        }}
+                                        className="w-full py-3 bg-gray-700 text-gray-300 rounded-xl font-semibold hover:bg-gray-600 transition-all"
+                                    >
+                                        나중에 하기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* 게이트 통과 후 제출 버튼 활성화 */}
-                    {gateToken && (
+                    {(gateToken || skipGate) && (
                         <button
                             className="mt-2 py-3 rounded-xl font-semibold transition-all bg-green-600 text-white hover:bg-green-700"
                             onClick={async () => {
@@ -496,9 +546,10 @@ export default function ProblemPage() {
                                         body: JSON.stringify({
                                             problem_id: problem.id,
                                             email: user?.email || "",
-                                            token: gateToken,
+                                            token: gateToken ?? null,
                                             code: code,
                                             time_spent_sec: timeSpentSec,
+                                            skip_gate: skipGate,
                                         }),
                                     });
 
