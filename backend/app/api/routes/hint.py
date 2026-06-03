@@ -32,6 +32,9 @@ class HintRequest(BaseModel):
     # 사용자 이메일 - 힌트 사용 횟수 기록용
     email: str
 
+    # 언어 추가 (기본값 python)
+    language: str = "python"
+
 
 # POST /api/hint
 @router.post("")
@@ -66,6 +69,7 @@ async def generate_hint(
 
 
     # DB에서 문제 정보 조회
+    # starter_code가 JSONB로 변경됨
     result = await db.execute(
         text("SELECT title, description, concept_tag, starter_code FROM problems WHERE id = :id"),
         {"id": request.problem_id}
@@ -77,6 +81,10 @@ async def generate_hint(
     
     problem_data = dict(problem._mapping)
 
+    # 언어별 starter_code 추출
+    # starter_code가 JSONB이므로 딕셔너리로 접근
+    starter_code = problem_data["starter_code"].get(request.language, "")
+
 
     # 힌트 단계별 구체성 조절
     # 단계가 높을수록 더 직접적인 힌트
@@ -85,6 +93,26 @@ async def generate_hint(
         2: "Intermediate hint. Point out the problematic line and mention what concept or approach to use, but never show code.",
         3: "Specific hint. Point out the line and tell what function or syntax to use, but never show complete code.",
     }
+
+    # 언어별 튜터 역할 설정
+    language_tutor = {
+        "python": "Python coding tutor",
+        "javascript": "JavaScript coding tutor",
+        "java": "Java coding tutor",
+        "cpp": "C++ coding tutor",
+        "csharp": "C# coding tutor",
+    }
+    tutor_role = language_tutor.get(request.language, "coding tutor")
+
+    # 언어별 코드 블록 표시
+    language_label = {
+        "python": "python",
+        "javascript": "javascript",
+        "java": "java",
+        "cpp": "cpp",
+        "csharp": "csharp",
+    }
+    lang_label = language_label.get(request.language, "python")
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
@@ -95,49 +123,49 @@ async def generate_hint(
     Always respond in Korean. Keep responses concise and structured.
     Output plain text only. Never use markdown formatting like **bold** or ## headers.""",
         messages=[
-            {
-                "role": "user",
-                "content": f"""Provide a hint for the following problem.
+        {
+            "role": "user",
+            "content": f"""Provide a hint for the following problem.
 
-    [Problem Information]
-    Title: {problem_data['title']}
-    Description: {problem_data['description']}
-    Concept: {problem_data['concept_tag']}
+[Problem Information]
+Title: {problem_data['title']}
+Description: {problem_data['description']}
+Concept: {problem_data['concept_tag']}
 
-    [Starter Code - This is given to learner, do NOT analyze or comment on this part]
-    ```python
-    {problem_data['starter_code']}
-    ```
+[Starter Code - This is given to learner, do NOT analyze or comment on this part]
+```{lang_label}
+{starter_code}
+```
 
-    [Learner's Current Code - Analyze only the lines the learner wrote AFTER the starter code]
-    ```python
-    {request.current_code}
-    ```
+[Learner's Current Code - Analyze only the lines the learner wrote AFTER the starter code]
+```{lang_label}
+{request.current_code}
+```
 
-    [Hint Step]
-    Step {request.hint_step}: {hint_level_desc[request.hint_step]}
+[Hint Step]
+Step {request.hint_step}: {hint_level_desc[request.hint_step]}
 
-    Format your response EXACTLY like this (plain text, no markdown):
+Format your response EXACTLY like this (plain text, no markdown):
 
-    📍 코드 분석
-    줄 {{번호}}: {{해당 줄에서 무엇이 부족하거나 개선이 필요한지}}
-    (학습자가 작성한 코드가 starter_code와 동일하거나 비어있으면 "아직 풀이 코드를 작성하지 않으셨네요!" 라고만 작성)
+📍 코드 분석
+줄 {{번호}}: {{해당 줄에서 무엇이 부족하거나 개선이 필요한지}}
+(학습자가 작성한 코드가 starter_code와 동일하거나 비어있으면 "아직 풀이 코드를 작성하지 않으셨네요!" 라고만 작성)
 
-    💡 핵심 힌트
-    (1줄로 핵심 방향만 제시)
+💡 핵심 힌트
+(1줄로 핵심 방향만 제시)
 
-    🤔 생각해보세요
-    (1가지 소크라테스식 질문)
+🤔 생각해보세요
+(1가지 소크라테스식 질문)
 
-    Rules:
-    - Never reveal the answer or show complete code
-    - Keep response concise and under 150 words in Korean
-    - Analyze ONLY the lines learner wrote, not the starter code
-    - No markdown formatting (no **, no ##, no backticks)
-    - Plain text only"""
-            }
-        ]
-    )
+Rules:
+- Never reveal the answer or show complete code
+- Keep response concise and under 150 words in Korean
+- Analyze ONLY the lines learner wrote, not the starter code
+- No markdown formatting (no **, no ##, no backticks)
+- Plain text only"""
+        }
+    ]
+)
 
     hint_text = next(
         (block.text for block in message.content

@@ -14,6 +14,8 @@ type GateModalProps = {
     // 사용자 이메일
     email: string;
 
+    language: string;
+
     // 게이트 통과 시 호출되는 콜백 (토큰 전달)
     onPass: (token: string) => void;
 
@@ -30,7 +32,7 @@ type GateQuestion = {
     concept: string;
 };
 
-export default function GateModal({ isOpen, problemId, email, onPass, onClose }: GateModalProps) {
+export default function GateModal({ isOpen, problemId, email, language, onPass, onClose }: GateModalProps) {
     // 게이트 문제 데이터
     const [gateQuestion, setGateQuestion] = useState<GateQuestion | null>(null);
 
@@ -60,7 +62,7 @@ export default function GateModal({ isOpen, problemId, email, onPass, onClose }:
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gate/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ problem_id: problemId, email }),
+                body: JSON.stringify({ problem_id: problemId, email, language: language }),
             });
 
             if (!res.ok) throw new Error("게이트 문제 생성 실패");

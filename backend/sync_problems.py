@@ -98,6 +98,19 @@ async def sync_problems():
                 # ensure_ascii=False: 한글이 \uXXXX 형태로 변환되지 않게
                 test_cases_json = json.dumps(data["test_cases"], ensure_ascii=False)
 
+                # starter_codes를 JSON 문자열로 변환
+                # 언어별 starter_code를 JSONB로 저장
+                # 예: {"python": "def solution...", "javascript": "function solution..."}
+                # data에 starter_codes가 없으면 기존 starter_code를 python으로 감싸서 저장
+                if "starter_codes" in data:
+                    starter_codes_json = json.dumps(data["starter_codes"], ensure_ascii=False)
+                else:
+                    # 기존 단일 starter_code를 python으로 감싸서 변환
+                    starter_codes_json = json.dumps(
+                        {"python": data.get("starter_code", "")},
+                        ensure_ascii=False
+                    )
+
                 # DB에 upsert 실행
                 # ON CONFLICT (title): title 컬럼에 UNIQUE 제약조건 기반
                 #   - title이 DB에 없으면 → INSERT (새 문제)
@@ -109,11 +122,11 @@ async def sync_problems():
                     text("""
                         INSERT INTO problems (
                             title, description, level, concept_tag,
-                            test_cases, starter_code, order_idx
+                            test_cases, starter_code, order_idx, language
                         )
                         VALUES (
                             :title, :description, :level, :concept_tag,
-                            :test_cases, :starter_code, :order_idx
+                            CAST(:test_cases AS JSONB), CAST(:starter_code AS JSONB), :order_idx, :language
                         )
                         ON CONFLICT (title)
                         DO UPDATE SET
@@ -122,7 +135,8 @@ async def sync_problems():
                             concept_tag = EXCLUDED.concept_tag,
                             test_cases = EXCLUDED.test_cases,
                             starter_code = EXCLUDED.starter_code,
-                            order_idx = EXCLUDED.order_idx
+                            order_idx = EXCLUDED.order_idx,
+                            language = EXCLUDED.language
                         RETURNING id, (xmax = 0) AS is_inserted
                     """),
                     {
@@ -131,8 +145,10 @@ async def sync_problems():
                         "level": data["level"],
                         "concept_tag": data["concept_tag"],
                         "test_cases": test_cases_json,
-                        "starter_code": data["starter_code"],
+                        # starter_codes_json을 starter_code 파라미터로 전달
+                        "starter_code": starter_codes_json,
                         "order_idx": data["order_idx"],
+                        "language": data.get("language", "python"),
                     }
                 )
 

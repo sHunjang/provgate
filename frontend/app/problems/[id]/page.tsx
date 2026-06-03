@@ -24,6 +24,9 @@ import { useAuth } from "@/app/hooks/useAuth";
 // useTimer 훅 추가
 import { useTimer } from "@/app/hooks/useTimer";
 
+// useJavaScript 훅 추가
+import { useJavaScript } from "@/app/hooks/useJavaScript";
+
 // 테스트 케이스 타입
 type TestCase = {
     input: string;
@@ -38,7 +41,8 @@ type Problem = {
     level: string;
     concept_tag: string;
     test_cases: TestCase[];
-    starter_code: string;
+    // JSONB로 변경됨 -> 언어별 딕셔너리
+    starter_code: Record<string, string>;
     hint_1: string;
     hint_2: string;
     hint_3: string;
@@ -103,11 +107,17 @@ export default function ProblemPage() {
     // 문제 시작 시간 기록 - 소요 시간 계산용
     // const [startTime] = useState<number>(Date.now());
 
+    // 선택된 언어 상태 (기본값 python)
+    const [selectedLanguage, setSelectedLanguage] = useState<"python" | "javascript">("python");
+
     // useTimer 훅을 통해 타이머 실행 -> 문제 풀이 소요 시간 측정
     const { formattedTime, elapsed, isVisible, toggleVisibility } = useTimer();
 
     // Pyodide 훅 - Python 실행 환경
     const { loading: pyodideLoading, error: pyodideError, runCode } = usePyodide();
+
+    // JavaScript 실행 엔진
+    const { runCode: runJsCode } = useJavaScript();
 
     // 컴포넌트 마운트 시 문제 데이터 API 호출
     useEffect(() => {
@@ -121,16 +131,25 @@ export default function ProblemPage() {
                 const data = await res.json();
                 setProblem(data);
 
+                // starter_code가 JSONB로 변경됨
+                // 언어별 starter_code 설정
+                // 예: {"python": "def solution...", "javascript": "function solution..."}
+                const starterCode = data.starter_code?.[selectedLanguage] || data.starter_code?.["python"] || "";
+
                 // starter_code를 초기 코드로 설정
-                setCode(data.starter_code || "");
+                setCode(starterCode);
             } catch (err) {
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchProblem();
+        // 컴포넌트 마운트 시 문제 데이터 API 호출
+        // selectedLanguage를 의존성에서 제외하는 이유:
+        // 언어 변경 시 API 재호출 불필요 (starter_code는 이미 JSONB로 전체 로드됨)
+        // 언어 변경은 언어 선택 버튼 onClick에서 직접 처리
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [problemId]);
 
     // 코드 실행 핸들러
@@ -142,7 +161,13 @@ export default function ProblemPage() {
         setRunning(true);
         setTestResult(null);
 
-        const result = await runCode(code, problem.test_cases);
+        // 선택한 언어에 따라 실행 엔진 분기
+        let result;
+        if (selectedLanguage === "python") {
+            result = await runCode(code, problem.test_cases);
+        } else {
+            result = await runJsCode(code, problem.test_cases);
+        }
 
         setTestResult(result);
         setRunning(false);
@@ -180,9 +205,8 @@ export default function ProblemPage() {
                     problem_id: problem.id,
                     current_code: code,
                     hint_step: nextStep,
-
-                    // 임시 이메일 - 나중에 인증 붙이면 교체
                     email: user?.email || "",
+                    language: selectedLanguage, // 추가
                 }),
             });
 
@@ -268,6 +292,55 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
+                {/* 언어 선택 버튼 */}
+                <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
+                    <button
+                        onClick={() => {
+                            setSelectedLanguage("python");
+                            setCode(problem?.starter_code?.["python"] || "");
+                            setTestResult(null);
+                            setAiHint(null);
+                            setHintStep(0);
+                        }}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                            selectedLanguage === "python"
+                                ? "bg-indigo-600 text-white"
+                                : "text-gray-400 hover:text-white"
+                        }`}
+                    >
+                        Python
+                    </button>
+                    <button
+                        onClick={() => {
+                            setSelectedLanguage("javascript");
+                            setCode(problem?.starter_code?.["javascript"] || "");
+                            setTestResult(null);
+                            setAiHint(null);
+                            setHintStep(0);
+                        }}
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                            selectedLanguage === "javascript"
+                                ? "bg-yellow-500 text-white"
+                                : "text-gray-400 hover:text-white"
+                        }`}
+                    >
+                        JavaScript
+                    </button>
+                </div>
+                {/* Python일 때만 Pyodide 로딩 상태 표시 */}
+                {selectedLanguage === "python" &&
+                    (pyodideLoading ? (
+                        <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
+                    ) : pyodideError ? (
+                        <span className="text-xs text-red-400">❌ Python 로드 실패</span>
+                    ) : (
+                        <span className="text-xs text-green-400">✅ Python 준비 완료</span>
+                    ))}
+
+                {/* JavaScript일 때 상태 표시 */}
+                {selectedLanguage === "javascript" && (
+                    <span className="text-xs text-yellow-400">✅ JavaScript 준비 완료</span>
+                )}
                 {/* 가운데: 타이머 + Pyodide 상태 */}
                 <div className="flex items-center gap-4">
                     {/* 타이머 */}
@@ -282,15 +355,6 @@ export default function ProblemPage() {
                             <span className="text-sm font-mono text-indigo-400 font-bold">{formattedTime}</span>
                         )}
                     </div>
-
-                    {/* Pyodide 로딩 상태 */}
-                    {pyodideLoading ? (
-                        <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
-                    ) : pyodideError ? (
-                        <span className="text-xs text-red-400">❌ Python 로드 실패</span>
-                    ) : (
-                        <span className="text-xs text-green-400">✅ Python 준비 완료</span>
-                    )}
                 </div>
 
                 {/* 오른쪽: 유저 정보 + 로그아웃 + 다크모드 */}
@@ -475,9 +539,9 @@ export default function ProblemPage() {
                     {/* 실행 버튼 */}
                     <button
                         onClick={handleRun}
-                        disabled={pyodideLoading || running}
+                        disabled={(selectedLanguage === "python" && pyodideLoading) || running}
                         className={`mt-4 py-3 rounded-xl font-semibold transition-all ${
-                            pyodideLoading || running
+                            (selectedLanguage === "python" && pyodideLoading) || running
                                 ? "bg-gray-700 text-gray-400 cursor-not-allowed"
                                 : "bg-indigo-600 text-white hover:bg-indigo-700"
                         }`}
@@ -581,6 +645,7 @@ export default function ProblemPage() {
                 isOpen={gateOpen}
                 problemId={problem.id}
                 email={user?.email || ""}
+                language={selectedLanguage}
                 onPass={(token) => {
                     // 토큰 저장
                     setGateToken(token);

@@ -31,6 +31,9 @@ class GateGenerateRequest(BaseModel):
     # 사용자 이메일
     email: str
 
+    # 언어 추가 (기본 값 python)
+    language: str = "python"
+
 
 # 게이트 답안 검증 요청 데이터 형식
 class GateVerifyRequest(BaseModel):
@@ -94,19 +97,29 @@ async def generate_gate(
 
     problem_data = dict(problem._mapping)
 
+    # 언어별 교육자 역할 설정
+    language_educator = {
+        "python": "Python coding educator",
+        "javascript": "JavaScript coding educator",
+        "java": "Java coding educator",
+        "cpp": "C++ coding educator",
+        "csharp": "C# coding educator",
+    }
+    educator_role = language_educator.get(request.language, "coding educator")
 
     # Claude API로 게이트 문제 생성
     # 같은 개념이지만 다른 유형의 문제 생성
     message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
-        system="""You are an expert Python coding educator.
+    model="claude-sonnet-4-6",
+    max_tokens=1000,
+    system=f"""You are an expert {educator_role}.
 Generate a verification question that tests the same concept as the original problem
 but with a different scenario or approach.
 The question must be multiple choice with 4 options.
 Always respond with valid JSON only.
 Never include any text outside the JSON structure.
-Questions and options must be written in Korean.""",
+Questions and options must be written in Korean.
+Use {request.language} code examples in questions if needed.""",
         messages=[
             {
                 "role": "user",
