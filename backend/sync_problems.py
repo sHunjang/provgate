@@ -258,13 +258,16 @@ async def process_yaml(db, yaml_file, track, inserted, updated):
         )
     
 
-    # questions: 면접/이해확인 질문 목록 -> JSON 문자열
-    # ex: [{"question": "시간복잡도는?", "answer": "O(n)", "choices": [...]}]
-    # 없으면 None (NULL로 DB에 저장)
-    questions_json = json.dumps(
-        data.get("question", []),
-        ensure_ascii=False,
-    ) if data.get("question") else None
+    # questions JSON 반환
+    # data.get("questions")가 있으면 JSON 문자열로 변환
+    # 없으면 빈 리스트 [] JSON으로 저장 (NULL 방지)
+    questions_data = data.get("questions", [])
+    
+    if questions_data:
+        questions_json = json.dumps(questions_data, ensure_ascii=False)
+    
+    else:
+        questions_json = "[]"
 
 
     # -- DB Upsert 실행 --
@@ -344,6 +347,7 @@ async def process_yaml(db, yaml_file, track, inserted, updated):
     # is_sorted: RETURNING 절에서 계산된 bool 값
     if row._mapping["is_inserted"]:
         inserted += 1
+        print(f"    ✅ INSERT: {data['title']} [{data.get('problem_type', 'coding')}]")
     else:
         updated += 1
         print(f"    🔄 UPDATE: {data['title']} [{data.get('problem_type', 'coding')}]")
