@@ -119,7 +119,7 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
     return (
         // 모달 오버레이 - 배경 클릭해도 닫히지 않음 (의도적)
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-600">
+            <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-600 max-h-[90vh] overflow-y-auto">
                 {/* 모달 헤더 */}
                 <div className="p-6 border-b border-gray-700">
                     <h2 className="text-xl font-bold text-white">🔒 이해 확인 게이트</h2>

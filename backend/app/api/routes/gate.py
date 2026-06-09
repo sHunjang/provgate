@@ -1,13 +1,23 @@
 # 이해 확인 게이트 라우터
 # 핵심 기능: 같은 개념의 다른 유형 문제로 실제 이해도 검증
 
+# coding 유형은 영어 프롬프트인데, AI 유형들(ai_reading, ai_debugging, ai_question)은 한글 프롬프트로 작성된 이유
+# 영어가 한국어보다 토큰 효율이 더 좋은 것은 맞음.
+# 하지만 한국어로 작성된 이유 == 트레이드 오프(Trade-Off) 때문임.
+# ai_reading, ai_debugging, ai_question 유형은 프롬프트 안에 아래처럼 들어감.
+#   제목: {title}           # "리스트 슬라이싱 결과 예측" (한국어)
+#   개념: {concept}         # "리스트" (한국어)
+#   AI 코드: {ai_code}      # 코드 (영어지만 주석은 한국어)
+#   원본 질문: {...}        # "위 코드의 출력 결과는?" (한국어)
+# 문제 데이터 자체가 한국어라서, 지시문만 영어로 쓰면 섞임.
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import anthropic
 import json
-import secrets  # 암호학적으로 안전한 토큰 생성
+import secrets
 from datetime import datetime, timedelta
 
 from app.core.config import settings
@@ -15,75 +25,252 @@ from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
 
 
+# ─────────────────────────────────────────────
+# APIRouter: FastAPI에서 라우터(경로 묶음)를 만드는 클래스
+# prefix="/api/gate" → 이 라우터의 모든 엔드포인트 앞에 /api/gate가 붙음
+# tags=["gate"] → Swagger 문서에서 "gate" 그룹으로 묶임
+# ─────────────────────────────────────────────
 router = APIRouter(prefix="/api/gate", tags=["gate"])
 
-
-# Claude API 클라이언트 초기화 -> 싱글톤 패턴
+# ─────────────────────────────────────────────
+# 싱글톤 패턴: 클라이언트 객체를 딱 한 번만 만들어 재사용
+# 매 요청마다 새로 만들면 연결 오버헤드가 생기기 때문에
+# 모듈 레벨(파일 최상단)에서 한 번 초기화하는 게 관례
+# ─────────────────────────────────────────────
 client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 
-# 게이트 문제 생성 요청 데이터 형식
+# ─────────────────────────────────────────────
+# Pydantic BaseModel: 요청 데이터의 타입과 유효성을 자동 검증해주는 클래스
+# FastAPI가 요청 body를 이 모델로 파싱 → 타입 불일치면 422 에러 자동 반환
+# ─────────────────────────────────────────────
 class GateGenerateRequest(BaseModel):
-
-    # 원본 문제 ID - 같은 개념의 다른 문제 생성에 사용
-    problem_id: str
-
-    # 사용자 이메일
-    email: str
-
-    # 언어 추가 (기본 값 python)
-    language: str = "python"
+    problem_id: str        # 원본 문제 ID (UUID 형태의 문자열)
+    email: str             # 사용자 이메일 (유저 조회 키)
+    language: str = "python"  # 언어 (기본값 python) → "= 값" 이 있으면 선택 필드
 
 
-# 게이트 답안 검증 요청 데이터 형식
 class GateVerifyRequest(BaseModel):
-
-    # 원본 문제 ID
     problem_id: str
-
-    # 사용자 이메일
     email: str
-
-    # 게이트 문제 (생성된 문제 텍스트)
-    gate_question: str
-
-    # 게이트 문제 보기 리스트
-    gate_options: list[str]
-
-    # 사용자가 선택한 답안 인덱스 (0-3)
-    user_answer: int
-
-    # 정답 인덱스
-    correct_answer: int
+    gate_question: str         # 생성된 게이트 문제 텍스트
+    gate_options: list[str]    # 보기 리스트 ["A. ...", "B. ...", ...]
+    user_answer: int           # 사용자가 선택한 보기 인덱스 (0~3)
+    correct_answer: int        # 정답 인덱스 (0~3)
 
 
-# POST /api/gate/generate
-# 이해 확인 게이트 문제 생성
+# ─────────────────────────────────────────────
+# 순수 함수(pure function): DB/API 호출 없이 입력값만으로 결과를 결정
+# 테스트하기 쉽고, 라우터 함수가 길어지는 걸 막아줌 (관심사 분리)
+#
+# dict 타입 힌트: 어떤 키-값이든 받을 수 있는 딕셔너리
+# str 타입 힌트: 문자열 반환
+# ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
+# 순수 함수(pure function): DB/API 호출 없이 입력값만으로 결과를 결정
+# 테스트하기 쉽고, 라우터 함수가 길어지는 걸 막아줌 (관심사 분리)
+#
+# 전략: 지시문(instruction)은 영어로 → 토큰 절약 + 모델 지시 이해 정확도 ↑
+#       데이터({title} 등)는 한국어 그대로 삽입 → 어차피 원본이 한국어
+#       출력 언어는 "MUST be in Korean"으로 명시 → 언어 혼동 방지
+# ─────────────────────────────────────────────
+def build_gate_prompt(problem_data: dict, language: str) -> str:
+    """problem_type에 따라 Claude에게 전달할 사용자 프롬프트를 생성한다."""
+
+    # dict.get(key, default): 키가 없으면 default 반환 (KeyError 방지)
+    problem_type = problem_data.get("problem_type", "coding")
+    concept = problem_data["concept_tag"]
+    level = problem_data["level"]
+    title = problem_data["title"]
+    description = problem_data["description"]
+
+    # 모든 유형에서 동일하게 쓸 JSON 출력 형식
+    # f-string 안에 중괄호를 쓸 때 {{ }} 로 이스케이프해야 함
+    # (f-string은 { }를 변수 치환으로 해석하기 때문)
+    output_schema = """
+[Output JSON Schema]
+{
+    "question": "question text (in Korean)",
+    "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+    "answer": 0,
+    "explanation": "explanation (in Korean)",
+    "concept": "concept tag"
+}"""
+
+    if problem_type == "ai_reading":
+        # dict.get(key, default): ai_code가 없는 문제일 경우 빈 문자열 반환
+        ai_code = problem_data.get("ai_code", "")
+        return f"""Generate a gate verification question based on the original problem below.
+[Original Problem]
+Title: {title}
+Concept: {concept}
+Level: {level}
+AI Code:
+{ai_code}
+
+[Requirements]
+1. Write completely NEW code using the SAME concept ({concept})
+2. Code must be in {language}, 5-10 lines long
+3. Make a multiple-choice question: "What is the output of this code?"
+4. Options must be actual output values
+5. Wrong options should come from common misconceptions
+6. Include the code inside the "question" field as a markdown code block
+7. IMPORTANT: question, options, and explanation MUST be written in Korean
+{output_schema}"""
+
+
+    elif problem_type == "ai_debugging":
+        ai_code = problem_data.get("ai_code", "")
+        return f"""Generate a gate verification question based on the original problem below.
+[Original Problem]
+Title: {title}
+Concept: {concept}
+Level: {level}
+Original Buggy Code:
+{ai_code}
+
+[Requirements]
+1. Write NEW buggy code with the SAME concept ({concept}) but a DIFFERENT scenario
+2. Code must be in {language}
+3. Make a multiple-choice question: "What error occurs?" or "What is the cause of the bug?"
+4. Provide 4 error-type options (error name + one-line description)
+5. Include the code inside the "question" field as a markdown code block
+6. IMPORTANT: question, options, and explanation MUST be written in Korean
+{output_schema}"""
+
+
+    elif problem_type == "ai_question":
+        # questions는 DB에서 JSONB 타입으로 저장된 리스트
+        # None일 수 있으므로 "or []" 로 빈 리스트 기본값 처리
+        questions = problem_data.get("questions") or []
+        original_q = ""
+        # 원본 질문이 있으면 참고용으로 프롬프트에 포함
+        if questions:
+            # questions[0]: 첫 번째 질문 딕셔너리
+            # .get('question', ''): 'question' 키가 없으면 빈 문자열
+            original_q = f"\nOriginal Question: {questions[0].get('question', '')}"
+        return f"""Generate a gate verification question based on the original problem below.
+[Original Problem]
+Title: {title}
+Concept: {concept}
+Level: {level}{original_q}
+
+[Requirements]
+1. Create a scenario where the user asks an AI about the concept "{concept}"
+2. Use a DIFFERENT task scenario from the original
+3. Make a multiple-choice question: "Which is the best prompt?"
+4. The 4 options request the same task but with different prompt quality (too vague / okay / good / very specific and good)
+5. Explain in "explanation" why the correct prompt is the best
+6. IMPORTANT: question, options, and explanation MUST be written in Korean
+{output_schema}"""
+
+
+    else:
+        # coding 유형 (기본값): 기존 영어 프롬프트 유지
+        return f"""Generate a gate verification question based on the following problem.
+[Original Problem]
+Title: {title}
+Description: {description}
+Concept: {concept}
+Level: {level}
+
+[Requirements]
+1. Test the SAME concept but with a DIFFERENT scenario
+2. Must be multiple choice with 4 options
+3. Include one correct answer and three plausible wrong answers based on misconceptions
+4. Must require actual understanding, not just memorization
+5. Include a brief explanation for the correct answer
+6. IMPORTANT: question, options, and explanation MUST be written in Korean
+{output_schema}"""
+
+
+def build_system_prompt(problem_type: str, language: str) -> str:
+    """Claude의 역할(페르소나)을 설정하는 시스템 프롬프트를 반환한다.
+
+    system_prompt = Claude가 대화 전체에서 유지할 역할/규칙
+    user_prompt   = 이번 요청의 실제 내용
+    둘을 분리하면 역할 설정과 요청 내용을 깔끔하게 관리할 수 있음
+
+    전략: 시스템 프롬프트도 영어로 통일 (토큰 절약 + 지시 정확도)
+        단, 출력 언어는 Korean으로 명시
+    """
+    language_map = {
+        "python": "Python",
+        "javascript": "JavaScript",
+        "java": "Java",
+        "cpp": "C++",
+        "csharp": "C#",
+    }
+    # dict.get(key, fallback): 지원하지 않는 언어가 오면 그대로 사용
+    lang_name = language_map.get(language, language)
+
+    # problem_type별로 교육자 역할(페르소나)을 다르게 설정
+    # → 같은 "코딩 교육자"여도 어떤 능력을 강조하느냐가 달라짐
+    role_map = {
+        "ai_reading": f"an expert {lang_name} educator who creates code-reading comprehension questions",
+        "ai_debugging": f"an expert {lang_name} educator who creates debugging questions",
+        "ai_question": f"an expert AI prompting educator who teaches how to write effective prompts",
+        "coding": f"an expert {lang_name} coding educator",
+    }
+    role = role_map.get(problem_type, f"an expert {lang_name} coding educator")
+
+    # 모든 유형 공통: JSON만 응답 + 한국어 출력 명시
+    return f"""You are {role}.
+Generate a verification question that tests the same concept as the original problem
+but with a different scenario or approach.
+Always respond with valid JSON only. Never include any text outside the JSON structure.
+The question, options, and explanation MUST be written in Korean."""
+
+
+# ─────────────────────────────────────────────
+# @router.post("/generate")
+# → HTTP POST /api/gate/generate 요청을 이 함수가 처리
+#
+# async def: 비동기 함수
+# → DB 쿼리, API 호출처럼 "기다리는 작업"이 있을 때 사용
+# → await 키워드로 기다리는 동안 다른 요청을 처리할 수 있음
+# → 동기 함수였다면 DB 응답 기다리는 동안 서버 전체가 멈춤
+#
+# Depends(get_db): 의존성 주입(Dependency Injection)
+# → FastAPI가 요청마다 자동으로 DB 세션을 열고 함수에 전달
+# → 함수가 끝나면 자동으로 세션을 닫아줌 (리소스 누수 방지)
+# ─────────────────────────────────────────────
 @router.post("/generate")
 async def generate_gate(
     request: GateGenerateRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    
-    # DB에서 유저 ID 조회 (Rate Limit 체크용)
+    # ── 1. 유저 조회 ──────────────────────────
+    # text(): SQLAlchemy에서 raw SQL을 사용할 때 감싸는 래퍼
+    # :email 은 바인딩 파라미터 → SQL 인젝션 방지
+    # {"email": request.email} 로 실제 값을 전달
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
         {"email": request.email}
     )
+    # fetchone(): 결과 중 첫 번째 행 하나만 가져옴 (없으면 None)
     user = user_result.fetchone()
 
     if not user:
+        # HTTPException: FastAPI에서 HTTP 에러 응답을 만드는 클래스
+        # status_code=404 → "Not Found" 응답
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
+    # _mapping: SQLAlchemy Row 객체를 딕셔너리처럼 접근하게 해주는 속성
+    # str()로 변환하는 이유: DB의 UUID 타입을 문자열로 통일하기 위해
     user_id = str(user._mapping["id"])
 
-    # Rate Limit 체크 - 하루 10회 제한
+    # ── 2. Rate Limit 체크 ────────────────────
+    # 하루 10회 초과 시 429 Too Many Requests 에러 발생 (rate_limit.py 참고)
     await check_rate_limit(user_id, "gate", db)
 
-    # DB에서 원본 문제 정보 조회
+    # ── 3. 문제 조회 ──────────────────────────
+    # 기존과 달리 problem_type, ai_code, questions도 같이 가져옴
+    # → 유형별 프롬프트 분기에 필요한 데이터들
     result = await db.execute(
         text("""
-            SELECT title, description, concept_tag, level
+            SELECT title, description, concept_tag, level,
+                   problem_type, ai_code, questions
             FROM problems
             WHERE id = :id
         """),
@@ -95,82 +282,56 @@ async def generate_gate(
     if not problem:
         raise HTTPException(status_code=404, detail="문제를 찾을 수 없습니다.")
 
+    # dict(row._mapping): SQLAlchemy Row → 일반 파이썬 딕셔너리로 변환
+    # 이후 코드에서 problem_data["key"] 형태로 접근하기 위해
     problem_data = dict(problem._mapping)
 
-    # 언어별 교육자 역할 설정
-    language_educator = {
-        "python": "Python coding educator",
-        "javascript": "JavaScript coding educator",
-        "java": "Java coding educator",
-        "cpp": "C++ coding educator",
-        "csharp": "C# coding educator",
-    }
-    educator_role = language_educator.get(request.language, "coding educator")
+    # ── 4. problem_type별 프롬프트 생성 ─────────
+    # 관심사 분리: 프롬프트 생성 로직을 별도 함수로 분리
+    # → 이 함수는 "언제 어떻게 호출할지"만 담당
+    # → 프롬프트 내용은 build_* 함수들이 담당
+    system_prompt = build_system_prompt(
+        problem_data.get("problem_type", "coding"),
+        request.language
+    )
+    user_prompt = build_gate_prompt(problem_data, request.language)
 
-    # Claude API로 게이트 문제 생성
-    # 같은 개념이지만 다른 유형의 문제 생성
+    # ── 5. Claude API 호출 ────────────────────
+    # client.messages.create(): Anthropic SDK의 동기 호출
+    # (AsyncAnthropic을 쓰면 await 가능하지만 현재 동기 클라이언트 사용 중)
     message = client.messages.create(
-    model="claude-sonnet-4-6",
-    max_tokens=1000,
-    system=f"""You are an expert {educator_role}.
-Generate a verification question that tests the same concept as the original problem
-but with a different scenario or approach.
-The question must be multiple choice with 4 options.
-Always respond with valid JSON only.
-Never include any text outside the JSON structure.
-Questions and options must be written in Korean.
-Use {request.language} code examples in questions if needed.""",
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Generate a gate verification question based on the following problem.
-
-[Original Problem]
-Title: {problem_data['title']}
-Description: {problem_data['description']}
-Concept: {problem_data['concept_tag']}
-Level: {problem_data['level']}
-
-[Requirements]
-1. Test the SAME concept but with a DIFFERENT scenario
-2. Must be multiple choice with 4 options
-3. Include one correct answer and three plausible wrong answers based on misconceptions
-4. Must require actual understanding, not just memorization
-5. Include a brief explanation for the correct answer
-
-[Output JSON Schema]
-{{
-    "question": "question content in Korean",
-    "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
-    "answer": 0,
-    "explanation": "explanation in Korean",
-    "concept": "{problem_data['concept_tag']}"
-}}"""
-            }
-        ]
+        model="claude-sonnet-4-6",
+        max_tokens=1000,         # 응답 최대 토큰 수
+        system=system_prompt,    # Claude의 역할/규칙 설정
+        messages=[{"role": "user", "content": user_prompt}]  # 실제 요청
     )
 
+    # ── 6. 응답 텍스트 추출 ───────────────────
+    # message.content: 응답 블록 리스트 (TextBlock, ToolUseBlock 등 섞일 수 있음)
+    # next(generator, default): generator에서 첫 번째 값 꺼내기
+    #   → TextBlock만 필터링해서 첫 번째 텍스트 반환
+    #   → 없으면 빈 문자열 반환
     response_text = next(
         (block.text for block in message.content
-            if isinstance(block, anthropic.types.TextBlock)),
+         if isinstance(block, anthropic.types.TextBlock)),
         ""
     )
 
-    # 코드 블록 마커 제거
+    # ── 7. 코드 블록 마커 제거 ────────────────
+    # Claude가 가끔 ```json ... ``` 형태로 감싸서 응답하는 경우가 있음
+    # JSON 파싱 전에 반드시 제거해야 json.loads() 에러 방지
     response_text = response_text.strip()
-
     if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    
+        response_text = response_text[7:]   # "```json" 7글자 제거
     if response_text.startswith("```"):
-        response_text = response_text[3:]
-    
+        response_text = response_text[3:]   # "```" 3글자 제거
     if response_text.endswith("```"):
-        response_text = response_text[:-3]
+        response_text = response_text[:-3]  # 끝의 "```" 3글자 제거
     response_text = response_text.strip()
 
-
-    # JSON 파싱
+    # ── 8. JSON 파싱 ──────────────────────────
+    # json.loads(): JSON 문자열 → 파이썬 딕셔너리
+    # try/except: 파싱 실패 시 500 에러 반환 (서버 문제로 간주)
     try:
         gate_data = json.loads(response_text)
     except json.JSONDecodeError:
@@ -179,25 +340,36 @@ Level: {problem_data['level']}
             detail="게이트 문제 생성 중 오류가 발생했습니다."
         )
 
-    # Rate Limit 사용 기록 저장
+    # ── 9. Rate Limit 사용 기록 ───────────────
+    # 체크(check)와 기록(record)을 분리한 이유:
+    # Claude API 호출이 성공한 후에만 카운트 차감
+    # → API 실패한 요청은 횟수에서 빠짐
     await record_api_usage(user_id, "gate", db)
 
-    # 게이트 시도 횟수 업데이트
+    # ── 10. gate_attempts 업데이트 (UPSERT) ────
+    # 문제: submissions 행은 최종 제출(submit) 때 처음 생성됨
+    #       → 게이트 생성 시점엔 행이 아직 없어서
+    #         단순 UPDATE는 매칭되는 행이 0건 → 아무 일도 안 일어남 (에러도 안 남)
+    # 해결: 행이 없으면 INSERT, 이미 있으면 +1 하는 UPSERT 패턴 사용
+    #
+    # UPSERT = UPDATE + INSERT
+    # INSERT ... ON CONFLICT ... DO UPDATE:
+    #   - (user_id, problem_id) 유니크 제약에 충돌(이미 행 존재)하면 DO UPDATE로 분기
+    #   - 충돌 없으면(행 없음) 그대로 INSERT
+    #   - "조회 후 분기"보다 원자적(atomic)이라 동시성 문제도 없음
     await db.execute(
         text("""
-            UPDATE submissions
-            SET gate_attempts = gate_attempts + 1
-            FROM users u
-            WHERE submissions.user_id = u.id
-            AND u.email = :email
-            AND submissions.problem_id = :problem_id
+            INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
+            VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
+            ON CONFLICT (user_id, problem_id)
+            DO UPDATE SET
+                gate_attempts = submissions.gate_attempts + 1
         """),
-        {
-            "email": request.email,
-            "problem_id": request.problem_id
-        }
+        {"user_id": user_id, "problem_id": request.problem_id}
     )
-    
+
+    # db.commit(): 위의 모든 DB 변경사항을 실제로 저장
+    # commit() 전까지는 트랜잭션 안에 임시 저장 상태
     await db.commit()
 
     return {
@@ -205,52 +377,58 @@ Level: {problem_data['level']}
         "options": gate_data["options"],
         "answer": gate_data["answer"],
         "explanation": gate_data["explanation"],
-        "concept": gate_data["concept"],
+        # .get()으로 안전하게 접근 → concept 키가 없으면 원본 concept_tag 사용
+        "concept": gate_data.get("concept", problem_data["concept_tag"]),
     }
 
 
 # POST /api/gate/verify
-# 게이트 답안 검증 + 토큰 발급
+# 게이트 답안 검증 + 통과 시 토큰 발급
 @router.post("/verify")
 async def verify_gate(
     request: GateVerifyRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    
-    # 정답 여부 확인
+    # ── 1. 정답 여부 확인 ─────────────────────
+    # 단순 인덱스 비교: 프론트에서 correct_answer를 함께 전송하는 구조
+    # (보안 주의: 실제 서비스에서는 correct_answer를 DB에서 직접 조회하는 게 안전)
     is_correct = request.user_answer == request.correct_answer
-    
+
     if not is_correct:
+        # 오답이면 토큰 없이 바로 반환 (DB 작업 없음)
         return {
             "passed": False,
             "message": "오답입니다. 다시 시도하세요.",
             "token": None,
         }
-    
 
-    # 정답이면 토큰 발급
-    # secrets.token_urlsafe: 암호학적으로 안전한 랜덤 토큰 생성
-    # URL에 안전한 문자만 사용 (base64url 인코딩)
+    # ── 2. 토큰 생성 ──────────────────────────
+    # secrets.token_urlsafe(32):
+    # → 암호학적으로 안전한 난수 기반 토큰 생성
+    # → random 모듈과 달리 예측 불가능 (보안 용도에 적합)
+    # → 32바이트 → base64url 인코딩 → 약 43자 문자열
+    # → URL에 안전한 문자만 사용 (+, / 대신 -, _ 사용)
     token = secrets.token_urlsafe(32)
 
-    # 토큰 만료 시간 설정 (24시간)
+    # timedelta(hours=24): 현재 시각 + 24시간 = 만료 시각
+    # datetime.utcnow(): UTC 기준 현재 시각 (서버 시간대 무관하게 일관성 유지)
     expires_at = datetime.utcnow() + timedelta(hours=24)
 
-    # 사용자 ID 조회
+    # ── 3. 유저 조회 ──────────────────────────
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
         {"email": request.email}
     )
     user = user_result.fetchone()
 
-
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    
+
     user_id = user._mapping["id"]
 
-
-    # gate_tokens 테이블에 토큰 저장
+    # ── 4. gate_tokens 테이블에 토큰 저장 ─────
+    # INSERT: 새 행 추가
+    # 이 토큰은 submit.py에서 최종 제출 시 유효성 검증에 사용됨
     await db.execute(
         text("""
             INSERT INTO gate_tokens (user_id, problem_id, token, expires_at)
@@ -264,8 +442,9 @@ async def verify_gate(
         }
     )
 
-    
-    # submissions 테이블 gate_passed 업데이트
+    # ── 5. submissions 테이블 gate_passed 업데이트 ──
+    # gate_passed = TRUE: 이 문제의 게이트 통과 완료 표시
+    # WHERE 절로 해당 유저 + 문제 행만 업데이트
     await db.execute(
         text("""
             UPDATE submissions
@@ -273,12 +452,11 @@ async def verify_gate(
             WHERE user_id = :user_id
             AND problem_id = :problem_id
         """),
-        {
-            "user_id": user_id,
-            "problem_id": request.problem_id,
-        }
+        {"user_id": user_id, "problem_id": request.problem_id}
     )
 
+    # INSERT와 UPDATE 두 작업을 하나의 트랜잭션으로 커밋
+    # → 둘 중 하나라도 실패하면 둘 다 롤백 (데이터 일관성 보장)
     await db.commit()
 
     return {

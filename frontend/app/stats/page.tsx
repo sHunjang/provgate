@@ -19,6 +19,13 @@ type Stats = {
     beginner_completed: number;
     intermediate_completed: number;
     advanced_completed: number;
+
+    // 레벨별 전체 문제 수
+    beginner_total: number;
+    intermediate_total: number;
+    advanced_total: number;
+    all_total: number;
+
     avg_time_sec: number;
     total_hints: number;
     total_gate_attempts: number;
@@ -81,14 +88,14 @@ export default function StatsPage() {
         }
     }, [authLoading, user, router]);
 
-// router를 의존성 배열에 넣는 이유?
-// useEffect 안에서 router를 사용하고 있는데
-// 의존성 배열에 없으면?
-// React 입장에서:
-// "router가 바뀔 수도 있는데
-//  내가 그걸 감지를 못하잖아!"
-//          ↓
-//       경고 발생
+    // router를 의존성 배열에 넣는 이유?
+    // useEffect 안에서 router를 사용하고 있는데
+    // 의존성 배열에 없으면?
+    // React 입장에서:
+    // "router가 바뀔 수도 있는데
+    //  내가 그걸 감지를 못하잖아!"
+    //          ↓
+    //       경고 발생
 
     // 통계 데이터 조회
     useEffect(() => {
@@ -144,9 +151,13 @@ export default function StatsPage() {
     if (!stats) return null;
 
     // 전체 문제 수 대비 완료 비율 계산
-    // 현재 총 15문제
-    const TOTAL_PROBLEMS = 15;
-    const completionRate = Math.round((stats.total_completed / TOTAL_PROBLEMS) * 100);
+    // all_total: 백엔드에서 실제 problems 개수를 세서 내려준 값
+    // (하드코딩하면 문제 추가 시마다 수정해야 하므로 동적으로 받음)
+    const totalProblems = stats.all_total;
+
+    // 분모가 0일 때 NaN 방지 (문제가 하나도 없는 극단적 상황 대비)
+    // 0으로 나누면 JavaScript에서 NaN이 나오고 화면이 깨짐
+    const completionRate = totalProblems > 0 ? Math.round((stats.total_completed / totalProblems) * 100) : 0;
 
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
@@ -189,16 +200,16 @@ export default function StatsPage() {
                         />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        전체 {TOTAL_PROBLEMS}문제 중 {stats.total_completed}문제 완료
+                        전체 {totalProblems}문제 중 {stats.total_completed}문제 완료
                     </p>
                 </div>
 
                 {/* 난이도별 완료 현황 */}
                 <div className="grid grid-cols-3 gap-4 mb-6">
                     {[
-                        { key: "beginner", count: stats.beginner_completed, total: 5 },
-                        { key: "intermediate", count: stats.intermediate_completed, total: 5 },
-                        { key: "advanced", count: stats.advanced_completed, total: 5 },
+                        { key: "beginner", count: stats.beginner_completed, total: stats.beginner_total },
+                        { key: "intermediate", count: stats.intermediate_completed, total: stats.intermediate_total },
+                        { key: "advanced", count: stats.advanced_completed, total: stats.advanced_total },
                     ].map(({ key, count, total }) => (
                         <div
                             key={key}
@@ -213,7 +224,7 @@ export default function StatsPage() {
                             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-3">
                                 <div
                                     className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.round((count / total) * 100)}%` }}
+                                    style={{ width: `${total > 0 ? Math.round((count / total) * 100) : 0}%` }}
                                 />
                             </div>
                         </div>

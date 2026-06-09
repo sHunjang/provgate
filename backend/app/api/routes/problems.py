@@ -31,7 +31,8 @@ async def get_problems(
     # order_idx 기준으로 정렬해서 문제 순서 보장
     result = await db.execute(
         text("""
-            SELECT id, title, description, level, concept_tag, order_idx
+            SELECT id, title, description, level, concept_tag,
+                    order_idx, problem_type, track
             FROM problems
             WHERE level = :level
             ORDER BY order_idx ASC
@@ -114,7 +115,8 @@ async def get_problem(id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         text("""
             SELECT id, title, description, level, concept_tag,
-                    test_cases, starter_code
+                    test_cases, starter_code, language,
+                    problem_type, track, ai_code, questions, answer_type
             FROM problems
             WHERE id = :id
         """),

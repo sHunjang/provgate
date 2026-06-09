@@ -27,6 +27,11 @@ import { useTimer } from "@/app/hooks/useTimer";
 // useJavaScript 훅 추가
 import { useJavaScript } from "@/app/hooks/useJavaScript";
 
+// 신규 문제 유형 컴포넌트
+import AIReadingSection from "@/app/components/AIReadingSection";
+import AIDebuggingSection from "@/app/components/AIDebuggingSection";
+import AIQuestionSection from "@/app/components/AIQuestionSection";
+
 // 테스트 케이스 타입
 type TestCase = {
     input: string;
@@ -41,11 +46,21 @@ type Problem = {
     level: string;
     concept_tag: string;
     test_cases: TestCase[];
-    // JSONB로 변경됨 -> 언어별 딕셔너리
     starter_code: Record<string, string>;
-    hint_1: string;
-    hint_2: string;
-    hint_3: string;
+    language: string;
+    // 신규 필드
+    problem_type: "coding" | "ai_reading" | "ai_debugging" | "ai_question";
+    track: string;
+    ai_code: string | null;
+    questions:
+        | {
+              question: string;
+              choices: string[];
+              answer: number;
+              explanation: string;
+          }[]
+        | null;
+    answer_type: "multiple_choice" | "code_edit" | "text";
 };
 
 // 테스트 결과 타입
@@ -103,6 +118,10 @@ export default function ProblemPage() {
 
     // 게이트 건너뛰기 여부
     const [skipGate, setSkipGate] = useState(false);
+
+    // AI 유형(reading/question)에서 사용자가 푼 답안 기록
+    // 제출 시 code 필드에 JSON으로 담아 전송 (학습 기록용)
+    const [aiAnswers, setAiAnswers] = useState<number[] | null>(null);
 
     // 문제 시작 시간 기록 - 소요 시간 계산용
     // const [startTime] = useState<number>(Date.now());
@@ -182,6 +201,21 @@ export default function ProblemPage() {
             }
             setShowGateChoice(true);
         }
+    };
+
+    // AI 유형(reading/question) 완료 핸들러
+    // 자식 컴포넌트가 모든 문항을 끝내면 이 함수를 호출함 (콜백)
+    const handleAIComplete = (answers: number[]) => {
+        // 비로그인 시 제출 불가 → 로그인 안내
+        if (!user) {
+            alert("🔐 제출하려면 로그인이 필요해요!");
+            router.push("/auth/login");
+            return;
+        }
+        // 선택한 답안 기록 저장
+        setAiAnswers(answers);
+        // coding과 동일하게 게이트 선택 모달 띄우기
+        setShowGateChoice(true);
     };
 
     // 힌트 보기 핸들러
@@ -292,57 +326,63 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
-                {/* 언어 선택 버튼 */}
-                <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
-                    <button
-                        onClick={() => {
-                            setSelectedLanguage("python");
-                            setCode(problem?.starter_code?.["python"] || "");
-                            setTestResult(null);
-                            setAiHint(null);
-                            setHintStep(0);
-                        }}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                            selectedLanguage === "python"
-                                ? "bg-indigo-600 text-white"
-                                : "text-gray-400 hover:text-white"
-                        }`}
-                    >
-                        Python
-                    </button>
-                    <button
-                        onClick={() => {
-                            setSelectedLanguage("javascript");
-                            setCode(problem?.starter_code?.["javascript"] || "");
-                            setTestResult(null);
-                            setAiHint(null);
-                            setHintStep(0);
-                        }}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                            selectedLanguage === "javascript"
-                                ? "bg-yellow-500 text-white"
-                                : "text-gray-400 hover:text-white"
-                        }`}
-                    >
-                        JavaScript
-                    </button>
-                </div>
-                {/* Python일 때만 Pyodide 로딩 상태 표시 */}
-                {selectedLanguage === "python" &&
-                    (pyodideLoading ? (
-                        <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
-                    ) : pyodideError ? (
-                        <span className="text-xs text-red-400">❌ Python 로드 실패</span>
-                    ) : (
-                        <span className="text-xs text-green-400">✅ Python 준비 완료</span>
-                    ))}
-
-                {/* JavaScript일 때 상태 표시 */}
-                {selectedLanguage === "javascript" && (
-                    <span className="text-xs text-yellow-400">✅ JavaScript 준비 완료</span>
-                )}
-                {/* 가운데: 타이머 + Pyodide 상태 */}
+                {/* 가운데: 언어 선택 + 환경 상태 */}
                 <div className="flex items-center gap-4">
+                    {/* coding/ai_debugging 유형일 때만 언어 선택 표시 */}
+                    {(problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
+                        <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
+                            <button
+                                onClick={() => {
+                                    setSelectedLanguage("python");
+                                    setCode(problem?.starter_code?.["python"] || "");
+                                    setTestResult(null);
+                                    setAiHint(null);
+                                    setHintStep(0);
+                                }}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                                    selectedLanguage === "python"
+                                        ? "bg-indigo-600 text-white"
+                                        : "text-gray-400 hover:text-white"
+                                }`}
+                            >
+                                Python
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setSelectedLanguage("javascript");
+                                    setCode(problem?.starter_code?.["javascript"] || "");
+                                    setTestResult(null);
+                                    setAiHint(null);
+                                    setHintStep(0);
+                                }}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                                    selectedLanguage === "javascript"
+                                        ? "bg-yellow-500 text-white"
+                                        : "text-gray-400 hover:text-white"
+                                }`}
+                            >
+                                JavaScript
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Python 환경 상태 */}
+                    {selectedLanguage === "python" &&
+                        (problem.problem_type === "coding" || problem.problem_type === "ai_debugging") &&
+                        (pyodideLoading ? (
+                            <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
+                        ) : pyodideError ? (
+                            <span className="text-xs text-red-400">❌ Python 로드 실패</span>
+                        ) : (
+                            <span className="text-xs text-green-400">✅ Python 준비 완료</span>
+                        ))}
+
+                    {/* JavaScript 환경 상태 */}
+                    {selectedLanguage === "javascript" &&
+                        (problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
+                            <span className="text-xs text-yellow-400">✅ JavaScript 준비 완료</span>
+                        )}
+
                     {/* 타이머 */}
                     <div className="flex items-center gap-2">
                         <button
@@ -359,9 +399,7 @@ export default function ProblemPage() {
 
                 {/* 오른쪽: 유저 정보 + 로그아웃 + 다크모드 */}
                 <div className="flex items-center gap-2">
-                    {/* 유저 이메일 */}
                     {user && <span className="text-xs text-gray-400 hidden sm:block">{user.email?.split("@")[0]}</span>}
-                    {/* 로그아웃 버튼 */}
                     {user && (
                         <button
                             onClick={async () => {
@@ -370,14 +408,13 @@ export default function ProblemPage() {
                                 router.push("/auth/login");
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full
-                                text-xs font-medium transition-all border
-                                bg-gray-800 border-gray-600 text-gray-300
-                                hover:bg-gray-700"
+                            text-xs font-medium transition-all border
+                            bg-gray-800 border-gray-600 text-gray-300
+                            hover:bg-gray-700"
                         >
                             로그아웃
                         </button>
                     )}
-                    {/* 다크모드 토글 */}
                     <ThemeToggle />
                 </div>
             </header>
@@ -386,17 +423,17 @@ export default function ProblemPage() {
             <div className="flex h-[calc(100vh-64px)]">
                 {/* 왼쪽: 문제 설명 */}
                 <div className="w-1/2 border-r border-gray-700 p-6 overflow-y-auto">
-                    {/* 난이도 뱃지 */}
+                    {/* 난이도 + 문제 유형 뱃지 */}
                     <div className="flex items-center gap-2">
                         <span
                             className={`text-xs px-2 py-1 rounded-full font-medium
-        ${
-            problem.level === "beginner"
-                ? "bg-green-900 text-green-300"
-                : problem.level === "intermediate"
-                  ? "bg-yellow-900 text-yellow-300"
-                  : "bg-blue-900 text-blue-300"
-        }`}
+                        ${
+                            problem.level === "beginner"
+                                ? "bg-green-900 text-green-300"
+                                : problem.level === "intermediate"
+                                  ? "bg-yellow-900 text-yellow-300"
+                                  : "bg-blue-900 text-blue-300"
+                        }`}
                         >
                             {problem.level === "beginner"
                                 ? "입문자"
@@ -407,238 +444,333 @@ export default function ProblemPage() {
                         <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-300">
                             {problem.concept_tag}
                         </span>
+                        {/* 문제 유형 뱃지 */}
+                        {problem.problem_type !== "coding" && (
+                            <span
+                                className={`text-xs px-2 py-1 rounded-full font-medium
+                            ${
+                                problem.problem_type === "ai_reading"
+                                    ? "bg-indigo-900 text-indigo-300"
+                                    : problem.problem_type === "ai_debugging"
+                                      ? "bg-red-900 text-red-300"
+                                      : "bg-purple-900 text-purple-300"
+                            }`}
+                            >
+                                {problem.problem_type === "ai_reading"
+                                    ? "🔍 코드 읽기"
+                                    : problem.problem_type === "ai_debugging"
+                                      ? "🐛 디버깅"
+                                      : "💬 AI 질문"}
+                            </span>
+                        )}
                     </div>
 
                     {/* 문제 설명 */}
                     <div className="mt-4 text-gray-300 whitespace-pre-wrap leading-relaxed">{problem.description}</div>
 
-                    {/* 테스트 케이스 */}
-                    <div className="mt-6">
-                        <h3 className="text-sm font-bold text-gray-400 mb-3">예제 입출력</h3>
-                        {problem.test_cases.map((tc, idx) => (
-                            <div
-                                key={idx}
-                                className="mb-3 bg-gray-800 rounded-lg p-4"
-                            >
-                                <div className="flex gap-4">
-                                    <div className="flex-1">
-                                        <p className="text-xs text-gray-500 mb-1">입력</p>
-                                        {/* parseDisplayInput: 바깥 배열 제거해서 자연스럽게 표시 */}
-                                        <code className="text-sm text-green-300">{parseDisplayInput(tc.input)}</code>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-xs text-gray-500 mb-1">출력</p>
-                                        <code className="text-sm text-blue-300">{tc.output}</code>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 힌트 섹션 */}
-                    <div className="mt-6">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-gray-400">AI 힌트</h3>
-                            <span className="text-xs text-gray-500">{hintStep}/3 사용</span>
-                        </div>
-
-                        {/* AI 힌트 표시 */}
-                        {aiHint && (
-                            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 mb-3">
-                                <p className="text-xs text-yellow-400 mb-2">💡 힌트 {hintStep}</p>
-                                {/* 줄바꿈 처리: \n을 기준으로 분리해서 각각 렌더링 */}
-                                <div className="text-sm text-yellow-200 space-y-2">
-                                    {aiHint
-                                        .split("\n")
-                                        .map((line, idx) => (line.trim() ? <p key={idx}>{line}</p> : null))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 힌트 버튼 */}
-                        {hintStep < 3 && (
-                            <button
-                                onClick={handleHint}
-                                disabled={hintLoading}
-                                className={`w-full py-2 rounded-lg border border-yellow-700 text-yellow-400 text-sm transition-all ${
-                                    hintLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-yellow-900/30"
-                                }`}
-                            >
-                                {hintLoading
-                                    ? "힌트 생성 중..."
-                                    : hintStep === 0
-                                      ? "AI 힌트 받기 💡"
-                                      : "다음 힌트 받기 💡"}
-                            </button>
-                        )}
-                    </div>
-
-                    {/* 테스트 결과 */}
-                    {testResult && (
+                    {/* 테스트 케이스 (coding, ai_debugging 유형만 표시) */}
+                    {(problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
                         <div className="mt-6">
-                            {/* 결과 요약 */}
-                            <div
-                                className={`p-3 rounded-lg mb-3 font-bold text-sm ${
-                                    testResult.success ? "bg-green-900/50 text-green-300" : "bg-red-900/50 text-red-300"
-                                }`}
-                            >
-                                {testResult.message}
-                            </div>
-
-                            {/* 테스트 케이스별 상세 결과 */}
-                            {testResult.results?.map((r, idx) => (
+                            <h3 className="text-sm font-bold text-gray-400 mb-3">예제 입출력</h3>
+                            {problem.test_cases.map((tc, idx) => (
                                 <div
                                     key={idx}
-                                    className={`mb-3 rounded-lg overflow-hidden border ${
-                                        r.passed ? "border-green-700" : "border-red-700"
-                                    }`}
+                                    className="mb-3 bg-gray-800 rounded-lg p-4"
                                 >
-                                    {/* 테스트 헤더 */}
-                                    <div
-                                        className={`px-4 py-2 text-xs font-bold flex items-center gap-2 ${
-                                            r.passed ? "bg-green-900/50 text-green-300" : "bg-red-900/50 text-red-300"
-                                        }`}
-                                    >
-                                        <span>{r.passed ? "✅" : "❌"}</span>
-                                        <span>테스트 {idx + 1}</span>
-                                    </div>
-
-                                    {/* 입력/출력 표 */}
-                                    <div className="bg-gray-800 divide-y divide-gray-700">
-                                        <div className="flex text-xs">
-                                            <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
-                                                예상 출력
-                                            </div>
-                                            <div className="flex-1 px-3 py-2 text-blue-300 font-mono">{r.expected}</div>
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <p className="text-xs text-gray-500 mb-1">입력</p>
+                                            <code className="text-sm text-green-300">
+                                                {parseDisplayInput(tc.input)}
+                                            </code>
                                         </div>
-                                        {!r.passed && (
-                                            <div className="flex text-xs">
-                                                <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
-                                                    실제 출력
-                                                </div>
-                                                <div className="flex-1 px-3 py-2 text-red-300 font-mono">
-                                                    {r.output || "출력 없음"}
-                                                </div>
-                                            </div>
-                                        )}
+                                        <div className="flex-1">
+                                            <p className="text-xs text-gray-500 mb-1">출력</p>
+                                            <code className="text-sm text-blue-300">{tc.output}</code>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     )}
+
+                    {/* 문제 유형별 섹션 */}
+
+                    {/* coding: 힌트 + 테스트 결과 */}
+                    {problem.problem_type === "coding" && (
+                        <>
+                            {/* 힌트 섹션 */}
+                            <div className="mt-6">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-bold text-gray-400">AI 힌트</h3>
+                                    <span className="text-xs text-gray-500">{hintStep}/3 사용</span>
+                                </div>
+                                {aiHint && (
+                                    <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4 mb-3">
+                                        <p className="text-xs text-yellow-400 mb-2">💡 힌트 {hintStep}</p>
+                                        <div className="text-sm text-yellow-200 space-y-2">
+                                            {aiHint
+                                                .split("\n")
+                                                .map((line, idx) => (line.trim() ? <p key={idx}>{line}</p> : null))}
+                                        </div>
+                                    </div>
+                                )}
+                                {hintStep < 3 && (
+                                    <button
+                                        onClick={handleHint}
+                                        disabled={hintLoading}
+                                        className={`w-full py-2 rounded-lg border border-yellow-700 text-yellow-400 text-sm transition-all ${
+                                            hintLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-yellow-900/30"
+                                        }`}
+                                    >
+                                        {hintLoading
+                                            ? "힌트 생성 중..."
+                                            : hintStep === 0
+                                              ? "AI 힌트 받기 💡"
+                                              : "다음 힌트 받기 💡"}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* 테스트 결과 */}
+                            {testResult && (
+                                <div className="mt-6">
+                                    <div
+                                        className={`p-3 rounded-lg mb-3 font-bold text-sm ${
+                                            testResult.success
+                                                ? "bg-green-900/50 text-green-300"
+                                                : "bg-red-900/50 text-red-300"
+                                        }`}
+                                    >
+                                        {testResult.message}
+                                    </div>
+                                    {testResult.results?.map((r, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`mb-3 rounded-lg overflow-hidden border ${
+                                                r.passed ? "border-green-700" : "border-red-700"
+                                            }`}
+                                        >
+                                            <div
+                                                className={`px-4 py-2 text-xs font-bold flex items-center gap-2 ${
+                                                    r.passed
+                                                        ? "bg-green-900/50 text-green-300"
+                                                        : "bg-red-900/50 text-red-300"
+                                                }`}
+                                            >
+                                                <span>{r.passed ? "✅" : "❌"}</span>
+                                                <span>테스트 {idx + 1}</span>
+                                            </div>
+                                            <div className="bg-gray-800 divide-y divide-gray-700">
+                                                <div className="flex text-xs">
+                                                    <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
+                                                        예상 출력
+                                                    </div>
+                                                    <div className="flex-1 px-3 py-2 text-blue-300 font-mono">
+                                                        {r.expected}
+                                                    </div>
+                                                </div>
+                                                {!r.passed && (
+                                                    <div className="flex text-xs">
+                                                        <div className="w-24 px-3 py-2 text-gray-500 bg-gray-900 font-medium">
+                                                            실제 출력
+                                                        </div>
+                                                        <div className="flex-1 px-3 py-2 text-red-300 font-mono">
+                                                            {r.output || "출력 없음"}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {/* ai_reading: AI 코드 읽기 섹션 */}
+                    {problem.problem_type === "ai_reading" && (
+                        <AIReadingSection
+                            problem={problem}
+                            onComplete={handleAIComplete}
+                        />
+                    )}
+
+                    {/* ai_debugging: AI 코드 디버깅 섹션 */}
+                    {problem.problem_type === "ai_debugging" && (
+                        <AIDebuggingSection
+                            problem={problem}
+                            aiCode={problem.ai_code || ""}
+                        />
+                    )}
+
+                    {/* ai_question: AI 질문 연습 섹션 */}
+                    {problem.problem_type === "ai_question" && (
+                        <AIQuestionSection
+                            problem={problem}
+                            onComplete={handleAIComplete}
+                        />
+                    )}
                 </div>
 
                 {/* 오른쪽: 코드 에디터 */}
                 <div className="w-1/2 flex flex-col p-6">
-                    <CodeEditor
-                        value={code}
-                        onChange={setCode}
-                        height="calc(100vh - 200px)"
-                    />
-
-                    {/* 실행 버튼 */}
-                    <button
-                        onClick={handleRun}
-                        disabled={(selectedLanguage === "python" && pyodideLoading) || running}
-                        className={`mt-4 py-3 rounded-xl font-semibold transition-all ${
-                            (selectedLanguage === "python" && pyodideLoading) || running
-                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-indigo-600 text-white hover:bg-indigo-700"
-                        }`}
-                    >
-                        {running ? "실행 중..." : "▶ 코드 실행"}
-                    </button>
-
-                    {/* 게이트 선택 모달 */}
-                    {showGateChoice && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                            <div className="bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
-                                <div className="text-4xl mb-4">🎉</div>
-                                <h2 className="text-xl font-bold text-white mb-2">모든 테스트 통과!</h2>
-                                <p className="text-gray-400 text-sm mb-6">
-                                    이해 확인 게이트를 통과하면 완전히 완료됩니다. 게이트는 같은 개념의 다른 문제로 진짜
-                                    이해를 검증해요.
-                                </p>
-                                <div className="flex flex-col gap-3">
-                                    {/* 게이트 진행 */}
-                                    <button
-                                        onClick={() => {
-                                            setShowGateChoice(false);
-                                            setGateOpen(true);
-                                        }}
-                                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
-                                    >
-                                        🔍 이해 확인하기
-                                    </button>
-                                    {/* 나중에 하기 */}
-                                    <button
-                                        onClick={() => {
-                                            setShowGateChoice(false);
-                                            // 게이트 없이 제출 가능하도록 임시 토큰 설정
-                                            setSkipGate(true);
-                                        }}
-                                        className="w-full py-3 bg-gray-700 text-gray-300 rounded-xl font-semibold hover:bg-gray-600 transition-all"
-                                    >
-                                        나중에 하기
-                                    </button>
+                    {/* ai_reading, ai_question은 에디터 불필요 → 안내 메시지 표시 */}
+                    {problem.problem_type === "ai_reading" || problem.problem_type === "ai_question" ? (
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center text-gray-500">
+                                <div className="text-4xl mb-4">
+                                    {problem.problem_type === "ai_reading" ? "🔍" : "💬"}
                                 </div>
+                                <p className="text-sm">
+                                    {problem.problem_type === "ai_reading"
+                                        ? "왼쪽 코드를 읽고 답을 선택하세요"
+                                        : "왼쪽에서 가장 좋은 프롬프트를 선택하세요"}
+                                </p>
                             </div>
                         </div>
-                    )}
+                    ) : (
+                        // coding, ai_debugging: 코드 에디터 표시
+                        <>
+                            <CodeEditor
+                                value={code}
+                                onChange={setCode}
+                                height="calc(100vh - 200px)"
+                            />
 
-                    {/* 게이트 통과 후 제출 버튼 활성화 */}
-                    {(gateToken || skipGate) && (
-                        <button
-                            className="mt-2 py-3 rounded-xl font-semibold transition-all bg-green-600 text-white hover:bg-green-700"
-                            onClick={async () => {
-                                if (!problem) return;
+                            {/* coding: 일반 실행 버튼 */}
+                            {problem.problem_type === "coding" && (
+                                <button
+                                    onClick={handleRun}
+                                    disabled={(selectedLanguage === "python" && pyodideLoading) || running}
+                                    className={`mt-4 py-3 rounded-xl font-semibold transition-all ${
+                                        (selectedLanguage === "python" && pyodideLoading) || running
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-indigo-600 text-white hover:bg-indigo-700"
+                                    }`}
+                                >
+                                    {running ? "실행 중..." : "▶ 코드 실행"}
+                                </button>
+                            )}
 
-                                // 비로그인 시 로그인 페이지로
-                                if (!user) {
-                                    router.push("/auth/login");
-                                    return;
-                                }
+                            {/* ai_debugging: 빨간색 실행 버튼 */}
+                            {problem.problem_type === "ai_debugging" && (
+                                <button
+                                    onClick={handleRun}
+                                    disabled={(selectedLanguage === "python" && pyodideLoading) || running}
+                                    className={`mt-4 py-3 rounded-xl font-semibold transition-all ${
+                                        (selectedLanguage === "python" && pyodideLoading) || running
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-red-600 text-white hover:bg-red-700"
+                                    }`}
+                                >
+                                    {running ? "실행 중..." : "🐛 버그 수정 후 실행"}
+                                </button>
+                            )}
 
-                                // 소요 시간 계산 (초 단위)
-                                // const timeSpentSec = Math.floor((Date.now() - startTime) / 1000);
-                                const timeSpentSec = elapsed;
-
-                                try {
-                                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {
-                                        method: "POST",
-                                        headers: { "Content-type": "application/json" },
-                                        body: JSON.stringify({
-                                            problem_id: problem.id,
-                                            email: user?.email || "",
-                                            token: gateToken ?? null,
-                                            code: code,
-                                            time_spent_sec: timeSpentSec,
-                                            skip_gate: skipGate,
-                                        }),
-                                    });
-
-                                    if (!res.ok) throw new Error("제출 실패");
-
-                                    const data = await res.json();
-
-                                    // 피드백 페이지로 이동
-                                    // 통계를 쿼리 파라미터로 전달
-                                    const params = new URLSearchParams({
-                                        level: problem.level,
-                                        stats: JSON.stringify(data.stats),
-                                    });
-                                    router.push(`/problems/feedback/${problem.id}?${params.toString()}`);
-                                } catch (err) {
-                                    console.error(err);
-                                    alert("제출 중 오류가 발생했습니다.");
-                                }
-                            }}
-                        >
-                            ✅ 최종 제출하기
-                        </button>
+                            {/* 테스트 결과 (ai_debugging 유형) */}
+                            {problem.problem_type === "ai_debugging" && testResult && (
+                                <div className="mt-3">
+                                    <div
+                                        className={`p-3 rounded-lg font-bold text-sm ${
+                                            testResult.success
+                                                ? "bg-green-900/50 text-green-300"
+                                                : "bg-red-900/50 text-red-300"
+                                        }`}
+                                    >
+                                        {testResult.message}
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
+
+            {/* ===== 모든 유형 공통: 게이트 선택 모달 ===== */}
+            {showGateChoice && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 text-center">
+                        <div className="text-4xl mb-4">🎉</div>
+                        <h2 className="text-xl font-bold text-white mb-2">학습 완료!</h2>
+                        <p className="text-gray-400 text-sm mb-6">
+                            이해 확인 게이트를 통과하면 완전히 완료됩니다. 게이트는 같은 개념의 다른 문제로 진짜 이해를
+                            검증해요.
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowGateChoice(false);
+                                    setGateOpen(true);
+                                }}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                            >
+                                🔍 이해 확인하기
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowGateChoice(false);
+                                    setSkipGate(true);
+                                }}
+                                className="w-full py-3 bg-gray-700 text-gray-300 rounded-xl font-semibold hover:bg-gray-600 transition-all"
+                            >
+                                나중에 하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== 모든 유형 공통: 최종 제출 버튼 ===== */}
+            {(gateToken || skipGate) && (
+                <div className="fixed bottom-6 right-6 z-40">
+                    <button
+                        className="px-6 py-3 rounded-xl font-semibold transition-all bg-green-600 text-white hover:bg-green-700 shadow-lg"
+                        onClick={async () => {
+                            if (!problem) return;
+                            if (!user) {
+                                router.push("/auth/login");
+                                return;
+                            }
+                            const timeSpentSec = elapsed;
+
+                            // 제출할 code 결정:
+                            // - AI 유형(reading/question): 선택한 답안 배열을 JSON 문자열로
+                            // - 그 외(coding/ai_debugging): 에디터에 작성한 코드
+                            const submitCode = aiAnswers !== null ? JSON.stringify(aiAnswers) : code;
+
+                            try {
+                                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                        problem_id: problem.id,
+                                        email: user?.email || "",
+                                        token: gateToken ?? null,
+                                        code: submitCode,
+                                        time_spent_sec: timeSpentSec,
+                                        skip_gate: skipGate,
+                                    }),
+                                });
+                                if (!res.ok) throw new Error("제출 실패");
+                                const data = await res.json();
+                                const params = new URLSearchParams({
+                                    level: problem.level,
+                                    stats: JSON.stringify(data.stats),
+                                });
+                                router.push(`/problems/feedback/${problem.id}?${params.toString()}`);
+                            } catch (err) {
+                                console.error(err);
+                                alert("제출 중 오류가 발생했습니다.");
+                            }
+                        }}
+                    >
+                        ✅ 최종 제출하기
+                    </button>
+                </div>
+            )}
 
             {/* 게이트 모달 */}
             <GateModal
@@ -647,7 +779,6 @@ export default function ProblemPage() {
                 email={user?.email || ""}
                 language={selectedLanguage}
                 onPass={(token) => {
-                    // 토큰 저장
                     setGateToken(token);
                     setGateOpen(false);
                 }}
