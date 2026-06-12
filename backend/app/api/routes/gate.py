@@ -49,6 +49,7 @@ class GateGenerateRequest(BaseModel):
     problem_id: str        # 원본 문제 ID (UUID 형태의 문자열)
     email: str             # 사용자 이메일 (유저 조회 키)
     language: str = "python"  # 언어 (기본값 python) → "= 값" 이 있으면 선택 필드
+    is_first: bool = False      # 이번 풀이의 첫 게이트 시도 여부 (True면 시도 횟수 리셋)
 
 
 class GateVerifyRequest(BaseModel):
@@ -358,16 +359,34 @@ async def generate_gate(
     #   - (user_id, problem_id) 유니크 제약에 충돌(이미 행 존재)하면 DO UPDATE로 분기
     #   - 충돌 없으면(행 없음) 그대로 INSERT
     #   - "조회 후 분기"보다 원자적(atomic)이라 동시성 문제도 없음
-    await db.execute(
-        text("""
-            INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
-            VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
-            ON CONFLICT (user_id, problem_id)
-            DO UPDATE SET
-                gate_attempts = submissions.gate_attempts + 1
-        """),
-        {"user_id": user_id, "problem_id": request.problem_id}
-    )
+    # is_first=True  → 이번 풀이의 첫 게이트 시도 → gate_attempts를 1로 리셋
+    #                  (같은 문제를 다시 풀 때 이전 누적값을 초기화하기 위함)
+    # is_first=False → 같은 풀이 내 재시도 → 기존값 +1 누적
+    if request.is_first:
+        # 첫 시도: 행이 없으면 생성(1), 있으면 1로 리셋
+        await db.execute(
+            text("""
+                INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
+                VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
+                ON CONFLICT (user_id, problem_id)
+                DO UPDATE SET
+                    gate_attempts = 1,
+                    gate_passed = FALSE
+            """),
+            {"user_id": user_id, "problem_id": request.problem_id}
+        )
+    else:
+        # 재시도: 기존값 +1 누적
+        await db.execute(
+            text("""
+                INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
+                VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
+                ON CONFLICT (user_id, problem_id)
+                DO UPDATE SET
+                    gate_attempts = submissions.gate_attempts + 1
+            """),
+            {"user_id": user_id, "problem_id": request.problem_id}
+        )
 
     # db.commit(): 위의 모든 DB 변경사항을 실제로 저장
     # commit() 전까지는 트랜잭션 안에 임시 저장 상태

@@ -74,7 +74,14 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gate/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ problem_id: problemId, email, language: language }),
+                body: JSON.stringify({
+                    problem_id: problemId,
+                    email,
+                    language: language,
+                    // attempts가 0이면 이번 풀이의 첫 게이트 시도 → 백엔드가 gate_attempts를 1로 리셋
+                    // attempts가 1 이상이면 재시도 → 누적
+                    is_first: attempts === 0,
+                }),
             });
 
             // 429: Rate Limit 한도 초과
