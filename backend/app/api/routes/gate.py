@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
 
+from app.core.rate_limit import check_rate_limit, record_api_usage, get_usage_status
 
 # ─────────────────────────────────────────────
 # APIRouter: FastAPI에서 라우터(경로 묶음)를 만드는 클래스
@@ -372,6 +373,13 @@ async def generate_gate(
     # commit() 전까지는 트랜잭션 안에 임시 저장 상태
     await db.commit()
 
+    # --- 11. 현재 게이트 사용 현황 조회 ---
+    # 프론트엔드가 "남은 횟수"를 알아야 사전 경고(6~7회)를 띄울 수 있음
+    # get_usage_status는 used/limit/remaining을 계산해서 반환 (rate_limit.py)
+    # 이미 record_api_usage로 이번 호출이 기록된 뒤이므로,
+    # 여기서 조회하면 이번 사용분까지 반영된 정확한 현황이 나옴
+    usage = await get_usage_status(user_id, "gate", db)
+
     return {
         "question": gate_data["question"],
         "options": gate_data["options"],
@@ -379,6 +387,8 @@ async def generate_gate(
         "explanation": gate_data["explanation"],
         # .get()으로 안전하게 접근 → concept 키가 없으면 원본 concept_tag 사용
         "concept": gate_data.get("concept", problem_data["concept_tag"]),
+        # 사용 현황 추가 (프론트 경고 표시음)
+        "usage": usage,
     }
 
 
