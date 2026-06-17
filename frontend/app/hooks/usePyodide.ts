@@ -17,12 +17,37 @@ type PyodideType = {
     };
 };
 
+// Pyodide가 Python 객체(dict, list 등)를 JS로 넘길 때 쓰는 래퍼 타입
+// CS 개념 - 프록시 패턴(Proxy Pattern):
+//   PyProxy는 "진짜 JS 객체"가 아니라, Python 메모리에 있는 객체를
+//   JS에서 다루기 위한 대리인(proxy) 객체.
+//   그래서 JSON.stringify()처럼 "이 객체의 진짜 데이터가 뭐야?"라고 묻는 함수들이
+//   PyProxy 내부를 못 들여다보고 빈 객체 {}로 잘못 인식해버림.
+//   toJs(): 이 대리인 객체를 진짜 JS 네이티브 객체(Object, Array 등)로
+//          "번역"해주는 Pyodide의 공식 메서드
+type PyProxyLike = {
+    toJs: (options: { dict_converter: typeof Object.fromEntries }) => unknown;
+};
+
 // 전역 window 타입 확장
 // Pyodide는 CDN 스크립트로 window.loadPyodide를 주입함
 declare global {
     interface Window {
         loadPyodide: (config: { indexURL: string }) => Promise<PyodideType>;
     }
+}
+
+// 값이 PyProxy(toJs 메서드를 가진 객체)인지 판별하는 타입 가드 함수
+// CS 개념 - 타입 가드(Type Guard):
+//   런타임에 값의 실제 타입을 확인해서, TypeScript 컴파일러에게
+//   "이 블록 안에서는 이 값을 PyProxyLike로 취급해도 안전하다"고 알려주는 함수
+function isPyProxy(value: unknown): value is PyProxyLike {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "toJs" in value &&
+        typeof (value as { toJs: unknown }).toJs === "function"
+    );
 }
 
 export function usePyodide() {
@@ -125,9 +150,23 @@ _result = solution(*_args)
                 await pyodideRef.current.runPythonAsync(wrappedCode);
                 const rawOutput = pyodideRef.current.globals.get("_result");
 
-                // Python 결과값을 JS로 변환 후 JSON 직렬화해서 비교
+                // Python 결과값을 JS로 변환
+                // 숫자/문자열/None 등 기본 타입은 Pyodide가 이미 자동으로
+                //   JS 기본 타입(number/string/null)으로 변환해줘서 그대로 써도 안전함
+                // 하지만 dict나 list는 PyProxy(대리인 객체)로 넘어오기 때문에
+                //   isPyProxy로 감지해서 toJs()로 명시적으로 변환해야 함
+                //   (안 그러면 JSON.stringify가 내부를 못 읽고 {} 로 잘못 찍음)
+                // dict_converter: Object.fromEntries
+                //   → Python dict를 JS의 Map이 아니라 일반 Object로 변환하도록 지정
+                //     (Map으로 변환되면 JSON.stringify(map)도 {} 가 나와서 똑같은 문제가 생김)
+                const output = isPyProxy(rawOutput)
+                    ? rawOutput.toJs({ dict_converter: Object.fromEntries })
+                    : rawOutput;
+
+                // JS로 변환된 결과를 JSON 문자열로 직렬화해서 비교
                 // 예: Python list [1,2] -> JS Array -> "[1,2]"
-                const outputStr = JSON.stringify(rawOutput);
+                // 예: Python dict {"a":1} -> JS Object -> '{"a":1}'
+                const outputStr = JSON.stringify(output);
                 const expectedStr = JSON.stringify(parsedExpected);
 
                 const passed = outputStr === expectedStr;
