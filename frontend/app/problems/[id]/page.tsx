@@ -31,6 +31,8 @@ import { useJavaScript } from "@/app/hooks/useJavaScript";
 import AIReadingSection from "@/app/components/AIReadingSection";
 import AIDebuggingSection from "@/app/components/AIDebuggingSection";
 import AIQuestionSection from "@/app/components/AIQuestionSection";
+// "AI 없이 직접 설계하기" 유형 컴포넌트 (신규)
+import DesignImplementationSection from "@/app/components/DesignImplementationSection";
 
 // 테스트 케이스 타입
 type TestCase = {
@@ -49,7 +51,8 @@ type Problem = {
     starter_code: Record<string, string>;
     language: string;
     // 신규 필드
-    problem_type: "coding" | "ai_reading" | "ai_debugging" | "ai_question";
+    // design_implementation: "AI 없이 직접 설계하기" 유형 (신규 추가)
+    problem_type: "coding" | "ai_reading" | "ai_debugging" | "ai_question" | "design_implementation";
     track: string;
     ai_code: string | null;
     questions:
@@ -61,6 +64,11 @@ type Problem = {
           }[]
         | null;
     answer_type: "multiple_choice" | "code_edit" | "text";
+    // design_implementation 전용 필드
+    // requirements: 느슨한 요구사항 텍스트 (학습자에게 보여줄 설명)
+    // thinking_hints: 생각해볼 질문 목록 (정답 아님, 방향만 제시)
+    requirements?: string | null;
+    thinking_hints?: string[] | null;
 };
 
 // 테스트 결과 타입
@@ -123,6 +131,10 @@ export default function ProblemPage() {
     // 제출 시 code 필드에 JSON으로 담아 전송 (학습 기록용)
     const [aiAnswers, setAiAnswers] = useState<number[] | null>(null);
 
+    // design_implementation 유형: 설계 제출 여부
+    // false면 오른쪽 코드 에디터를 비활성화 (먼저 설계부터 작성하게 강제)
+    const [conditionsSubmitted, setConditionsSubmitted] = useState(false);
+
     // 문제 시작 시간 기록 - 소요 시간 계산용
     // const [startTime] = useState<number>(Date.now());
 
@@ -137,6 +149,14 @@ export default function ProblemPage() {
 
     // JavaScript 실행 엔진
     const { runCode: runJsCode } = useJavaScript();
+
+    // 코드 실행이 필요한 유형인지 판단하는 헬퍼
+    // coding, ai_debugging, design_implementation 모두 Python/JS 코드를 실행함
+    // (ai_reading, ai_question은 코드 에디터 자체가 없음)
+    const needsCodeExecution =
+        problem?.problem_type === "coding" ||
+        problem?.problem_type === "ai_debugging" ||
+        problem?.problem_type === "design_implementation";
 
     // 컴포넌트 마운트 시 문제 데이터 API 호출
     useEffect(() => {
@@ -189,9 +209,18 @@ export default function ProblemPage() {
         }
 
         setTestResult(result);
+        console.log("디버깅용 - 실행 결과:", JSON.stringify(result, null, 2));
         setRunning(false);
 
-        // 모든 테스트 통과 시 게이트 모달 자동 실행
+        // design_implementation 유형은 실행 성공해도 바로 게이트로 가지 않음
+        // → DesignImplementationSection이 testResult(실행 결과)를 받아서
+        //   "AI 피드백 받기" 버튼을 보여주고, 그 흐름이 끝나야 게이트로 이동함
+        // (게이트 이동은 DesignImplementationSection의 onComplete 콜백에서 처리)
+        if (problem.problem_type === "design_implementation") {
+            return;
+        }
+
+        // 그 외 유형(coding, ai_debugging): 모든 테스트 통과 시 게이트 모달 자동 실행
         if (result.success) {
             if (!user) {
                 // 비로그인 시 로그인 안내
@@ -203,16 +232,17 @@ export default function ProblemPage() {
         }
     };
 
-    // AI 유형(reading/question) 완료 핸들러
-    // 자식 컴포넌트가 모든 문항을 끝내면 이 함수를 호출함 (콜백)
-    const handleAIComplete = (answers: number[]) => {
+    // AI 유형(reading/question/design_implementation) 완료 핸들러
+    // 자식 컴포넌트가 모든 절차를 끝내면 이 함수를 호출함 (콜백)
+    // design_implementation은 answers가 없으므로 빈 배열을 기본값으로 둠
+    const handleAIComplete = (answers: number[] = []) => {
         // 비로그인 시 제출 불가 → 로그인 안내
         if (!user) {
             alert("🔐 제출하려면 로그인이 필요해요!");
             router.push("/auth/login");
             return;
         }
-        // 선택한 답안 기록 저장
+        // 선택한 답안 기록 저장 (design_implementation은 빈 배열)
         setAiAnswers(answers);
         // coding과 동일하게 게이트 선택 모달 띄우기
         setShowGateChoice(true);
@@ -328,8 +358,8 @@ export default function ProblemPage() {
 
                 {/* 가운데: 언어 선택 + 환경 상태 */}
                 <div className="flex items-center gap-4">
-                    {/* coding/ai_debugging 유형일 때만 언어 선택 표시 */}
-                    {(problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
+                    {/* coding/ai_debugging/design_implementation 유형일 때만 언어 선택 표시 */}
+                    {needsCodeExecution && (
                         <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
                             <button
                                 onClick={() => {
@@ -368,7 +398,7 @@ export default function ProblemPage() {
 
                     {/* Python 환경 상태 */}
                     {selectedLanguage === "python" &&
-                        (problem.problem_type === "coding" || problem.problem_type === "ai_debugging") &&
+                        needsCodeExecution &&
                         (pyodideLoading ? (
                             <span className="text-xs text-yellow-400">⏳ Python 환경 로딩 중...</span>
                         ) : pyodideError ? (
@@ -378,10 +408,9 @@ export default function ProblemPage() {
                         ))}
 
                     {/* JavaScript 환경 상태 */}
-                    {selectedLanguage === "javascript" &&
-                        (problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
-                            <span className="text-xs text-yellow-400">✅ JavaScript 준비 완료</span>
-                        )}
+                    {selectedLanguage === "javascript" && needsCodeExecution && (
+                        <span className="text-xs text-yellow-400">✅ JavaScript 준비 완료</span>
+                    )}
 
                     {/* 타이머 */}
                     <div className="flex items-center gap-2">
@@ -453,22 +482,37 @@ export default function ProblemPage() {
                                     ? "bg-indigo-900 text-indigo-300"
                                     : problem.problem_type === "ai_debugging"
                                       ? "bg-red-900 text-red-300"
-                                      : "bg-purple-900 text-purple-300"
+                                      : problem.problem_type === "ai_question"
+                                        ? "bg-purple-900 text-purple-300"
+                                        : "bg-teal-900 text-teal-300"
                             }`}
                             >
                                 {problem.problem_type === "ai_reading"
                                     ? "🔍 코드 읽기"
                                     : problem.problem_type === "ai_debugging"
                                       ? "🐛 디버깅"
-                                      : "💬 AI 질문"}
+                                      : problem.problem_type === "ai_question"
+                                        ? "💬 AI 질문"
+                                        : "✏️ 설계 과제"}
+                            </span>
+                        )}
+                        {/* design_implementation 전용: "AI 없이 직접" 배지 */}
+                        {problem.problem_type === "design_implementation" && (
+                            <span className="text-xs px-2 py-1 rounded-full bg-gray-700 text-gray-400">
+                                🚫 AI 없이 직접
                             </span>
                         )}
                     </div>
 
-                    {/* 문제 설명 */}
-                    <div className="mt-4 text-gray-300 whitespace-pre-wrap leading-relaxed">{problem.description}</div>
+                    {/* 문제 설명 (design_implementation은 자체 컴포넌트에서 requirements를 따로 보여주므로 숨김) */}
+                    {problem.problem_type !== "design_implementation" && (
+                        <div className="mt-4 text-gray-300 whitespace-pre-wrap leading-relaxed">
+                            {problem.description}
+                        </div>
+                    )}
 
                     {/* 테스트 케이스 (coding, ai_debugging 유형만 표시) */}
+                    {/* design_implementation은 학습자마다 조건이 달라서 "예제 입출력"을 보여주지 않음 */}
                     {(problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
                         <div className="mt-6">
                             <h3 className="text-sm font-bold text-gray-400 mb-3">예제 입출력</h3>
@@ -611,6 +655,18 @@ export default function ProblemPage() {
                             onComplete={handleAIComplete}
                         />
                     )}
+
+                    {/* design_implementation: AI 없이 직접 설계하기 섹션 (신규) */}
+                    {problem.problem_type === "design_implementation" && (
+                        <DesignImplementationSection
+                            problem={problem}
+                            code={code}
+                            executionResult={testResult}
+                            email={user?.email || ""}
+                            onConditionsSubmit={() => setConditionsSubmitted(true)}
+                            onComplete={() => handleAIComplete()}
+                        />
+                    )}
                 </div>
 
                 {/* 오른쪽: 코드 에디터 */}
@@ -629,8 +685,17 @@ export default function ProblemPage() {
                                 </p>
                             </div>
                         </div>
+                    ) : problem.problem_type === "design_implementation" && !conditionsSubmitted ? (
+                        // design_implementation인데 아직 설계를 제출 안 했으면
+                        // 코드 에디터 대신 안내 메시지 (먼저 설계부터 작성하도록 유도)
+                        <div className="flex-1 flex items-center justify-center">
+                            <div className="text-center text-gray-500">
+                                <div className="text-4xl mb-4">✏️</div>
+                                <p className="text-sm">왼쪽에서 먼저 당신의 설계를 작성하고 제출해주세요</p>
+                            </div>
+                        </div>
                     ) : (
-                        // coding, ai_debugging: 코드 에디터 표시
+                        // coding, ai_debugging, design_implementation(설계 제출 후): 코드 에디터 표시
                         <>
                             <CodeEditor
                                 value={code}
@@ -668,20 +733,37 @@ export default function ProblemPage() {
                                 </button>
                             )}
 
-                            {/* 테스트 결과 (ai_debugging 유형) */}
-                            {problem.problem_type === "ai_debugging" && testResult && (
-                                <div className="mt-3">
-                                    <div
-                                        className={`p-3 rounded-lg font-bold text-sm ${
-                                            testResult.success
-                                                ? "bg-green-900/50 text-green-300"
-                                                : "bg-red-900/50 text-red-300"
-                                        }`}
-                                    >
-                                        {testResult.message}
-                                    </div>
-                                </div>
+                            {/* design_implementation: 청록색 실행 버튼 */}
+                            {problem.problem_type === "design_implementation" && (
+                                <button
+                                    onClick={handleRun}
+                                    disabled={(selectedLanguage === "python" && pyodideLoading) || running}
+                                    className={`mt-4 py-3 rounded-xl font-semibold transition-all ${
+                                        (selectedLanguage === "python" && pyodideLoading) || running
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-teal-600 text-white hover:bg-teal-700"
+                                    }`}
+                                >
+                                    {running ? "실행 중..." : "▶ 내 설계대로 짠 코드 실행"}
+                                </button>
                             )}
+
+                            {/* 테스트 결과 (ai_debugging, design_implementation 유형) */}
+                            {(problem.problem_type === "ai_debugging" ||
+                                problem.problem_type === "design_implementation") &&
+                                testResult && (
+                                    <div className="mt-3">
+                                        <div
+                                            className={`p-3 rounded-lg font-bold text-sm ${
+                                                testResult.success
+                                                    ? "bg-green-900/50 text-green-300"
+                                                    : "bg-red-900/50 text-red-300"
+                                            }`}
+                                        >
+                                            {testResult.message}
+                                        </div>
+                                    </div>
+                                )}
                         </>
                     )}
                 </div>
@@ -736,8 +818,11 @@ export default function ProblemPage() {
 
                             // 제출할 code 결정:
                             // - AI 유형(reading/question): 선택한 답안 배열을 JSON 문자열로
+                            // - design_implementation: 학습자가 작성한 코드 그대로
+                            //   (my_conditions는 design_feedback API 호출 시 이미 submissions에 저장됨)
                             // - 그 외(coding/ai_debugging): 에디터에 작성한 코드
-                            const submitCode = aiAnswers !== null ? JSON.stringify(aiAnswers) : code;
+                            const submitCode =
+                                aiAnswers !== null && aiAnswers.length > 0 ? JSON.stringify(aiAnswers) : code;
 
                             try {
                                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {
