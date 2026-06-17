@@ -116,7 +116,8 @@ async def get_problem(id: str, db: AsyncSession = Depends(get_db)):
         text("""
             SELECT id, title, description, level, concept_tag,
                     test_cases, starter_code, language,
-                    problem_type, track, ai_code, questions, answer_type
+                    problem_type, track, ai_code, questions, answer_type,
+                requirements, thinking_hints
             FROM problems
             WHERE id = :id
         """),

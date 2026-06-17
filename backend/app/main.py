@@ -26,6 +26,8 @@ from app.api.routes.hint import router as hint_router
 from app.api.routes.gate import router as gate_router
 from app.api.routes.submit import router as submit_router
 from app.api.routes.stats import router as stats_router
+# 신규: 설계 피드백 라우터 (problem_type="design_implementation" 전용)
+from app.api.routes.design_feedback import router as design_feedback_router
 
 # FastAPI 인스턴스 생성
 # title, version은 자동 생성되는 API 문서(/docs)에 표시됨
@@ -80,6 +82,7 @@ app.include_router(hint_router)
 app.include_router(gate_router)
 app.include_router(submit_router)
 app.include_router(stats_router)
+app.include_router(design_feedback_router)  # 신규: /api/design/feedback
 
 
 # 헬스체크 엔드포인트

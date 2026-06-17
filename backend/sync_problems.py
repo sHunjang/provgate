@@ -284,14 +284,16 @@ async def process_yaml(db, yaml_file, track, inserted, updated):
             INSERT INTO problems (
                 title, description, level, concept_tag,
                 test_cases, starter_code, order_idx, language,
-                problem_type, track, ai_code, questions, answer_type
+                problem_type, track, ai_code, questions, answer_type,
+                requirements, thinking_hints, reference_points
             )
             VALUES (
                 :title, :description, :level, :concept_tag,
                 CAST(:test_cases AS JSONB), CAST(:starter_code AS JSONB),
                 :order_idx, :language,
                 :problem_type, :track, :ai_code,
-                CAST(:questions AS JSONB), :answer_type
+                CAST(:questions AS JSONB), :answer_type,
+                :requirements, CAST(:thinking_hints AS JSONB), CAST(:reference_points AS JSONB)
             )
             ON CONFLICT (title)
             DO UPDATE SET
@@ -306,7 +308,10 @@ async def process_yaml(db, yaml_file, track, inserted, updated):
                 track = EXCLUDED.track,
                 ai_code = EXCLUDED.ai_code,
                 questions = EXCLUDED.questions,
-                answer_type = EXCLUDED.answer_type
+                answer_type = EXCLUDED.answer_type,
+                requirements = EXCLUDED.requirements,
+                thinking_hints = EXCLUDED.thinking_hints,
+                reference_points = EXCLUDED.reference_points
             RETURNING id, (xmax = 0) AS is_inserted
         """),
         {
@@ -328,6 +333,9 @@ async def process_yaml(db, yaml_file, track, inserted, updated):
             "ai_code": data.get("ai_code", None),  # 없으면 NULL
             "questions": questions_json,  # 없으면 NULL
             "answer_type": data.get("answer_type", "multiple_choice"),
+            "requirements": data.get("requirements", None),
+            "thinking_hints": json.dumps(data.get("thinking_hints", []), ensure_ascii=False),
+            "reference_points": json.dumps(data.get("reference_points", []), ensure_ascii=False),
         }
     )
 

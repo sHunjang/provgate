@@ -11,9 +11,16 @@ from datetime import datetime, timezone
 # API 타입별 하루 최대 호출 횟수
 # 추후 유료 플랜에서는 이 값을 늘릴 수 있음
 RATE_LIMITS = {
-    "hint": 20,     # 힌트: 하루 최대 20회
-    "gate": 10,     # 게이트: 하루 최대 10회
-    "quiz": 3,      # 진단 퀴즈: 하루 최대 3회
+    "hint": 20,             # 힌트: 하루 최대 20회
+    "gate": 10,             # 게이트: 하루 최대 10회
+    "quiz": 3,              # 진단 퀴즈: 하루 최대 3회
+    "design_feedback": 10,  # 설계 피드백: 하루 최대 10회
+    # hint(20)보다 적게 잡은 이유:
+    #   - design_feedback은 한 번 호출할 때마다 학습자의 설계(글) + 코드 +
+    #     실행 결과(JSON)까지 한꺼번에 분석해야 해서, hint보다 입력 토큰이 훨씬 많음
+    #   - 토큰이 많을수록 API 호출 비용이 커지므로, 비용 관리 차원에서 더 낮게 설정
+    #   - gate(10)와 비슷한 수준으로 맞춤: gate도 "이해도를 깊게 검증"하는
+    #     무거운 작업이라 같은 선상에 둠
 }
 
 
@@ -31,12 +38,18 @@ async def check_rate_limit(
 
     동작 방식:
         1. 오늘 날짜 기준으로 해당 API 호출 횟수 조회
-            CURRENT_DATE: PostgreSQL의 현재 날짜 (지정 기준 자동 리셋)
+            CURRENT_DATE: PostgreSQL의 현재 날짜 (자정 기준 자동 리셋)
         2. 제한 횟수 초과 시 HTTPException 발생
-        3. 초과하지 않으면 현재 사용 횟수 반환
+        3. 초과하지 않으면 그대로 함수 종료 (반환값 없음)
+
+    CS 개념 - 자료구조:
+        RATE_LIMITS는 딕셔너리(해시맵)로 구현됨
+        api_type 문자열을 키로 사용해 O(1) 시간복잡도로 제한값을 조회함
+        (만약 리스트로 구현했다면 매번 순회해야 해서 O(n)이 걸림)
     """
 
     # api_type 유효성 검증
+    # RATE_LIMITS 딕셔너리에 없는 타입이면 코드 작성 실수이므로 즉시 에러
     if api_type not in RATE_LIMITS:
         raise ValueError(f"유효하지 않은 api_type: {api_type}")
     
