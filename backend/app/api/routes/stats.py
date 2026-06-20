@@ -48,10 +48,10 @@ async def get_stats(
     stats_result = await db.execute(
         text("""
             SELECT
-                -- 전체 완료 문제 수 (게이트 통과한 것만)
+                -- 전체 완료 문제 수 (게이트 통과한 것만, 공용 문제만 집계)
                 COUNT(*) FILTER (WHERE gate_passed = TRUE) AS total_completed,
 
-                -- 난이도별 완료 문제 수 (= 분자, "8/5"의 8)
+                -- 난이도별 완료 문제 수
                 COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'beginner') AS beginner_completed,
                 COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'intermediate') AS intermediate_completed,
                 COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'advanced') AS advanced_completed,
@@ -68,6 +68,9 @@ async def get_stats(
             FROM submissions s
             JOIN problems p ON s.problem_id = p.id
             WHERE s.user_id = :user_id
+            -- 신규: AI가 개인 전용으로 생성한 문제는 "전체 진행률" 집계에서 제외
+            -- (분모인 total_result 쿼리와 기준을 통일해야 "10/9" 같은 모순이 안 생김)
+            AND p.owner_user_id IS NULL
         """),
         {"user_id": user_id}
     )
@@ -91,9 +94,9 @@ async def get_stats(
                 COUNT(*) FILTER (WHERE level = 'advanced') AS advanced_total,
                 COUNT(*) AS all_total
             FROM problems
+            WHERE owner_user_id IS NULL
         """)
     )
-    # 이 쿼리는 항상 1행을 반환 (COUNT는 행이 없어도 0을 돌려줌)
     # 이 쿼리는 항상 1행을 반환 (COUNT는 행이 없어도 0을 돌려줌)
     # 다만 fetchone()의 타입은 Row | None이라 타입 체커가 None 가능성을 경고함
     # → 명시적으로 None을 분리해서 타입 체커를 안심시키고, 만일을 대비
