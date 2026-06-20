@@ -159,6 +159,13 @@ export default function StatsPage() {
     // 0으로 나누면 JavaScript에서 NaN이 나오고 화면이 깨짐
     const completionRate = totalProblems > 0 ? Math.round((stats.total_completed / totalProblems) * 100) : 0;
 
+    // AI가 생성한 문제(track: ai_generated)의 제목은
+    // "원본 제목 #해시8자리" 형태로 DB에 저장되어 있음
+    // (problems.title에 UNIQUE 제약이 있어서, AI가 비슷한 제목을 여러 번
+    //  만들어도 충돌하지 않도록 submit.py에서 해시를 붙여 저장함)
+    // 화면에는 해시를 보여줄 필요가 없으므로 "#" 앞부분만 추출해서 표시
+    const displayTitle = (title: string) => title.split(" #")[0];
+
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
             <div className="max-w-4xl mx-auto">
@@ -270,7 +277,7 @@ export default function StatsPage() {
                                         <span>{sub.gate_passed ? "✅" : "⏳"}</span>
                                         <div>
                                             <p className="font-medium text-sm text-gray-900 dark:text-white">
-                                                {sub.title}
+                                                {displayTitle(sub.title)}
                                             </p>
                                             <p className={`text-xs ${levelColor[sub.level]}`}>
                                                 {levelLabel[sub.level]} · {sub.concept_tag}

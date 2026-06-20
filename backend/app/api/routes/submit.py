@@ -48,6 +48,10 @@ class SimilarProblemRequest(BaseModel):
     # 사용자 확정 수준
     level: str
 
+    # 유사 문제를 받을 사용자 이메일
+    # 이 문제는 이 사용자 전용으로 생성되어 DB에 저장됨 (개인 맞춤)
+    email: str
+
 
 # POST /api/submit
 # 최종 제출 - 토큰 검증 후 제출 처리
@@ -190,14 +194,27 @@ async def submit_solution(
 
 
 # POST /api/similar-problem
-# 유사 문제 생성 - Claude API로 동적 생성
+# 유사 문제 생성 - Claude API로 동적 생성 + 개인 전용으로 DB 저장
 @router.post("/similar-problem")
 async def generate_similar_problem(
     request: SimilarProblemRequest,
     db: AsyncSession = Depends(get_db)
 ):
     
-    # DB에서 원본 무넺 정보 조회
+    # 유저 ID 조회 - 이 문제를 받을 사용자 (owner_user_id로 저장됨)
+    user_result = await db.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": request.email}
+    )
+    user = user_result.fetchone()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    user_id = user._mapping["id"]
+
+
+    # DB에서 원본 문제 정보 조회
     result = await db.execute(
         text("""
             SELECT title, description, concept_tag, level
@@ -217,7 +234,7 @@ async def generate_similar_problem(
     problem_data = dict(problem._mapping)
 
 
-    # Claude API로 유사 문제 생성ㅇ
+    # Claude API로 유사 문제 생성
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1500,
@@ -228,36 +245,44 @@ Always respond with valid JSON only.
 Never include any text outside the JSON structure.
 All content must be written in Korean.""",
         messages=[
-            {
-                "role": "user",
-                "content": f"""Generate a similar problem based on the following.
+                    {
+                        "role": "user",
+                        "content": f"""Generate a similar problem based on the following.
 
-[Original Problem]
-Title: {problem_data['title']}
-Description: {problem_data['description']}
-Concept: {problem_data['concept_tag']}
-Level: {problem_data['level']}
+        [Original Problem]
+        Title: {problem_data['title']}
+        Description: {problem_data['description']}
+        Concept: {problem_data['concept_tag']}
+        Level: {problem_data['level']}
 
-[Requirements]
-1. Same concept but completely different scenario
-2. Similar difficulty level
-3. Include 3 test cases
-4. Include starter code template
-5. Include 3 progressive hints
+        [Requirements]
+        1. Same concept but completely different scenario
+        2. Similar difficulty level
+        3. Include exactly 3 test cases
+        4. Include starter code template
 
-[Output JSON Schema]
-{{
-    "title": "problem title in Korean",
-    "description": "problem description in Korean",
-    "concept_tag": "{problem_data['concept_tag']}",
-    "level": "{request.level}",
-    "test_cases": [
-        {{"input": "input value", "output": "expected output"}}
-    ],
-    "starter_code": "# starter code template in Korean comments"
-}}"""
-            }
-        ]
+        [CRITICAL - test_cases input format]
+        The "input" field MUST be a JSON array string representing positional
+        arguments to the function, NOT a comma-separated description.
+        Correct: "input": "[1000, 2000]"
+        Wrong:   "input": "1000, 2000"
+        The "output" field MUST also be a valid JSON value as a string.
+        Correct: "output": "3000"
+        Wrong:   "output": "result is 3000"
+
+        [Output JSON Schema]
+        {{
+            "title": "problem title in Korean",
+            "description": "problem description in Korean, include 2 examples like:\\n예시:\\n- solution(...) → ...",
+            "concept_tag": "{problem_data['concept_tag']}",
+            "level": "{request.level}",
+            "test_cases": [
+                {{"input": "[value1, value2]", "output": "expected_value"}}
+            ],
+            "starter_code": "def solution(param1, param2):\\n    # 여기에 코드를 작성하세요\\n    return"
+        }}"""
+                    }
+                ]
     )
 
     # text 타입 블록만 필터링
@@ -286,5 +311,68 @@ Level: {problem_data['level']}
             status_code=500,
             detail="유사 문제 생성 중 오류가 발생했습니다."
         )
+
+
+    # ============================================================
+    # 신규: 생성된 문제를 DB에 즉시 저장 (개인 전용)
+    # ============================================================
+    # AI가 만든 starter_code는 순수 문자열이므로,
+    # 기존 problems.starter_code 컬럼 형식(JSONB, {"python": "..."})에 맞춰 변환
+    # (오늘 발견한 starter_codes 포맷 버그와 같은 실수를 반복하지 않기 위한 처리)
+    starter_codes_dict = {"python": similar_problem.get("starter_code", "")}
+
+    # title 중복 충돌 방지
+    # problems.title에 UNIQUE 제약이 걸려있을 가능성이 있으므로 (sync_problems.py의
+    # ON CONFLICT(title) 로직 참고), AI가 생성한 제목 뒤에 짧은 식별자를 붙여
+    # 같은 제목이 여러 번 생성돼도 충돌하지 않게 함
+    import uuid
+    unique_title = f"{similar_problem['title']} #{str(uuid.uuid4())[:8]}"
+
+    insert_result = await db.execute(
+        text("""
+            INSERT INTO problems (
+                title, description, level, concept_tag,
+                test_cases, starter_code, order_idx, language,
+                problem_type, track, owner_user_id
+            )
+            VALUES (
+                :title, :description, :level, :concept_tag,
+                CAST(:test_cases AS JSONB), CAST(:starter_code AS JSONB),
+                :order_idx, 'python',
+                'coding', 'ai_generated', :owner_user_id
+            )
+            RETURNING id
+        """),
+        {
+            "title": unique_title,
+            "description": similar_problem["description"],
+            "level": request.level,
+            "concept_tag": similar_problem.get("concept_tag", problem_data["concept_tag"]),
+            "test_cases": json.dumps(similar_problem.get("test_cases", []), ensure_ascii=False),
+            "starter_code": json.dumps(starter_codes_dict, ensure_ascii=False),
+            "order_idx": 999,
+            "owner_user_id": user_id,
+        }
+    )
+
+    new_problem_row = insert_result.fetchone()
+
+    # fetchone()의 반환 타입은 Row | None이라, 타입 체커가 None 가능성을 경고함
+    # RETURNING id가 있는 INSERT는 보통 항상 1행을 반환하지만,
+    # 방어적으로 None 체크를 추가해서 타입 경고도 없애고 런타임 안전성도 높임
+    if new_problem_row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="문제 저장 중 오류가 발생했습니다."
+        )
+
+    await db.commit()
+
+    new_problem_id = str(new_problem_row._mapping["id"])
+
+    # 프론트에는 원래 제목(식별자 없이)을 보여주고,
+    # id만 추가로 내려줘서 "이 문제 도전하기" 버튼이 실제 라우팅을 할 수 있게 함
+    similar_problem["id"] = new_problem_id
+    similar_problem["title"] = similar_problem["title"]  # 원본 제목 유지 (DB엔 unique_title 저장됨)
 
     return similar_problem

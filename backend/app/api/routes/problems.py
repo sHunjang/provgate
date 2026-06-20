@@ -35,6 +35,7 @@ async def get_problems(
                     order_idx, problem_type, track
             FROM problems
             WHERE level = :level
+            AND owner_user_id IS NULL
             ORDER BY order_idx ASC
         """),
         {"level": level}
