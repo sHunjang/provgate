@@ -9,8 +9,15 @@ import { useState, useEffect } from "react";
 // useRouter: 페이지 이동
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 
+// useAuth: 현재 로그인한 유저 정보 가져오기
+// similar-problem API가 "누구 전용으로 문제를 저장할지" 알아야 해서 필요해짐
+import { useAuth } from "@/app/hooks/useAuth";
+
 // 유사 문제 타입 정의
 type SimilarProblem = {
+    // 신규: 백엔드가 DB에 저장한 후 발급한 실제 문제 ID
+    // 이 값이 있어야 "이 문제 도전하기" 버튼이 실제 문제 페이지로 이동 가능
+    id: string;
     title: string;
     description: string;
     concept_tag: string;
@@ -34,6 +41,11 @@ export default function FeedbackPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
+    // 현재 로그인한 유저 정보
+    // similar-problem 생성 요청 시 email을 같이 보내야
+    // 백엔드가 "이 문제는 이 사용자 전용"으로 저장할 수 있음
+    const { user } = useAuth();
+
     // URL 쿼리 파라미터에서 통계와 수준 가져오기
     const problemId = params.id as string;
     const level = searchParams.get("level") || "beginner";
@@ -47,11 +59,28 @@ export default function FeedbackPage() {
     // 로딩 상태
     const [loading, setLoading] = useState(true);
 
+    // 신규: 이미 유사 문제 생성을 요청했는지 여부
+    // useAuth()의 user 객체가 렌더링마다 새 참조로 바뀔 수 있어서,
+    // useEffect의 의존성 배열에 user를 넣으면 의도치 않게 여러 번 실행될 위험이 있음
+    // (오늘 발견한 Supabase lock 경합 버그와 같은 "중복 실행" 계열 문제)
+    // 이 플래그로 "한 번 요청했으면 더 이상 안 함"을 보장해서,
+    // AI가 같은 화면에서 문제를 여러 개 중복 생성하는 것을 막음
+    const [hasFetched, setHasFetched] = useState(false);
+
     // 컴포넌트 마운트 시 유사 문제 생성
     useEffect(() => {
+        // user 정보가 아직 로딩 중(null)이면 기다림
+        // 이미 요청을 보냈으면(hasFetched) 다시 보내지 않음
+        if (!user || hasFetched) return;
+
         const fetchSimilarProblem = async () => {
             try {
                 setLoading(true);
+
+                // 요청 시작 시점에 바로 플래그를 세팅
+                // (fetch가 끝나기 전에 useEffect가 다시 실행되더라도
+                //  이 시점 이후로는 if (!user || hasFetched) 에서 즉시 걸러짐)
+                setHasFetched(true);
 
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/similar-problem`, {
                     method: "POST",
@@ -59,6 +88,9 @@ export default function FeedbackPage() {
                     body: JSON.stringify({
                         problem_id: problemId,
                         level,
+                        // 신규: 이 문제를 받을 사용자 이메일
+                        // 백엔드가 이 값으로 user_id를 조회해서 owner_user_id로 저장함
+                        email: user.email,
                     }),
                 });
 
@@ -74,7 +106,7 @@ export default function FeedbackPage() {
         };
 
         fetchSimilarProblem();
-    }, [problemId, level]);
+    }, [problemId, level, user, hasFetched]);
 
     // 시간 포맷 변환 함수
     // 120초 -> "2분 0초"
@@ -190,16 +222,10 @@ export default function FeedbackPage() {
 
                             {/* 도전하기 버튼 */}
                             <button
-                                // 수정 전
-                                // onClick={() => {
-                                //     // 유사 문제를 sessionStorage에 저장 후 에디터로 이동
-                                //     sessionStorage.setItem("similarProblem", JSON.stringify(similarProblem));
-                                //     router.push("/problems/similar");
-                                // }}
-                                // 수정 후 - sessionStorage에 저장하고 에디터 페이지에서 불러오는 방식 대신
-                                // 피드백 페이지에서 직접 유사 문제를 보여주는 방식으로 변경
-                                // 일단 버튼 클릭 시 문제 목록으로 이동
-                                onClick={() => router.push("/problems")}
+                                // 신규: 백엔드가 DB에 즉시 저장한 problem_id로 실제 라우팅
+                                // 이 문제는 owner_user_id로 현재 사용자에게만 연결되어 있어서
+                                // 다른 사람의 문제 목록에는 노출되지 않음 (개인 전용)
+                                onClick={() => router.push(`/problems/${similarProblem.id}`)}
                                 className="w-full py-3 bg-indigo-600 text-white rounded-xl
                                     font-semibold hover:bg-indigo-700 transition-all"
                             >
