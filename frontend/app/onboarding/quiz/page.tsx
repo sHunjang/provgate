@@ -6,7 +6,9 @@ import { Suspense } from "react";
 // 상태가 바뀌면 컴포넌트가 자동으로 다시 랜더링 됨
 // useEffect: 컴포넌트 랜더링 후 실행되는 Hook
 // 주로 API 호출, 구독, 타이머 등 부수효과(side effect) 처리에 사용
-import { useState, useEffect } from "react";
+// useRef: 리렌더링 없이 값을 유지하는 Hook
+// 중복 API 호출 방지용 플래그로 사용 (useState와 달리 값이 바뀌어도 리렌더링 안 일어남)
+import { useState, useEffect, useRef } from "react";
 
 // useRouter: 페이지 이동에 사용하는 Hook
 // useSearchParams: URL 쿼리 파라미터를 읽어오는 Hook
@@ -51,13 +53,32 @@ function QuizContent() {
 
     const { user } = useAuth();
 
+    // 중복 호출 방지용 ref
+    // 문제: useAuth()의 user가 처음엔 null → 몇 초 후 실제 유저 정보로 바뀜
+    //       user가 의존성 배열에 있으면 이 변화가 useEffect를 재실행시켜
+    //       퀴즈가 새로 생성되면서 문제가 갑자기 바뀌는 현상이 발생함
+    // 해결: hasFetchedRef로 "이미 요청했음"을 기록해서 중복 실행을 막음
+    // useRef를 쓰는 이유: useState와 달리 값이 바뀌어도 리렌더링이 일어나지 않음
+    //                    → 플래그 역할만 하면 충분하므로 useRef가 적합
+    const hasFetchedRef = useRef(false);
+
     // 컴포넌트가 마운트될 때 퀴즈 생성 API 호출
     // useEffect: 컴포넌트 렌더링 후 실행되는 Hook
-    // 두 번째 인자 [level]: level이 바뀔 때마다 재실행
+    // 두 번째 인자 [level, user]: level이나 user가 바뀔 때마다 재실행
     useEffect(() => {
+        // 이미 퀴즈를 가져왔으면 재실행 안 함
+        // user가 null → {email} 으로 바뀔 때 useEffect가 재실행되어도
+        // 이 체크에서 걸려서 퀴즈가 새로 생성되는 걸 방지
+        if (hasFetchedRef.current) return;
+
         const fetchQuiz = async () => {
             try {
                 setLoading(true);
+
+                // 요청 시작 시점에 바로 플래그 세팅
+                // fetch가 끝나기 전에 useEffect가 다시 실행되더라도
+                // 이 시점 이후로는 hasFetchedRef.current 체크에서 즉시 걸러짐
+                hasFetchedRef.current = true;
 
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/quiz/generate`, {
                     method: "POST",
@@ -82,6 +103,9 @@ function QuizContent() {
                 setAnswers(Array.from({ length: data.questions.length }, () => -1));
             } catch (err) {
                 console.log(err);
+                // 실패했으면 ref를 초기화해서 재시도 가능하게 함
+                // (성공한 경우엔 초기화 안 함 — 재호출 방지)
+                hasFetchedRef.current = false;
                 setError("퀴즈를 불러오는 중 오류가 발생했습니다. 다시 시도하세요.");
             } finally {
                 // 성공/실패 관계없이 로딩 종료
