@@ -119,7 +119,7 @@ export default function ProblemPage() {
         };
 
         initialize();
-    }, [user?.email, authLoading]); // user.email 변경 시에만 실행 (로그인/로그아웃)
+    }, [user?.email, authLoading, router]); // user.email 변경 시에만 실행 (로그인/로그아웃)
 
     // 난이도 필터 변경 시에만 문제 목록 재조회
     // 초기 로드는 위 useEffect에서 처리하므로
