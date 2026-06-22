@@ -7,7 +7,7 @@ import { useState } from "react";
 // Next.js의 라우터 - 페이지 이동에 사용
 // Link 컴포넌트 대신 useRouter를 쓰는 이유:
 // 버튼 클릭 후 데이터를 가지고 이동해야 하기 때문
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // useAuth: 현재 로그인한 유저 정보를 가져오는 커스텀 훅
 // user가 null이면 비로그인 상태
@@ -65,6 +65,9 @@ export default function Home() {
     // user가 null이면 비로그인 상태
     const { user } = useAuth();
 
+    const searchParams = useSearchParams();
+    const needOnboarding = searchParams.get("needOnboarding");
+
     // 시작 버튼 핸들러
     const handleStart = () => {
         if (mode === "practice") {
@@ -106,6 +109,18 @@ export default function Home() {
                 <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Provgate</h1>
                 <p className="text-lg text-gray-600 dark:text-gray-400">AI와 함께, 이해는 스스로</p>
             </div>
+
+            {needOnboarding && (
+                <div
+                    className="mb-6 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20
+                border border-yellow-300 dark:border-yellow-700 rounded-xl text-center
+                w-full max-w-3xl"
+                >
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
+                        📋 문제 풀기 전에 먼저 진단하기를 완료해주세요
+                    </p>
+                </div>
+            )}
 
             <div className="w-full max-w-3xl">
                 {/* 모드 선택 */}
@@ -205,10 +220,10 @@ export default function Home() {
                     {mode === "practice"
                         ? "문제 풀러 가기 →"
                         : !user && mode === "diagnose"
-                        ? "로그인 후 진단하기 🔐"
-                        : mode === "diagnose" && selectedLevel
-                        ? "진단 시작하기 →"
-                        : "위에서 선택해주세요"}
+                          ? "로그인 후 진단하기 🔐"
+                          : mode === "diagnose" && selectedLevel
+                            ? "진단 시작하기 →"
+                            : "위에서 선택해주세요"}
                 </button>
             </div>
         </main>

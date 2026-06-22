@@ -81,6 +81,15 @@ export default function ProblemPage() {
                     );
                     if (levelRes.ok) {
                         const levelData = await levelRes.json();
+
+                        // 온보딩을 안 했으면 진단 페이지로 강제 이동
+                        // (users 테이블에 행이 없는 신규 가입자 -> 모든 API가 404를 반환하는 문제 해결)
+                        // 진단을 완료해야 users 테이블에 행이 생기므로,
+                        // 그 전에 /stats, 게이트 등 user_id가 필요한 모든 기능이 깨짐
+                        if (!levelData.has_onboarding) {
+                            router.push("/?needOnboarding=true")
+                            return;
+                        }
                         // 온보딩 기록이 있으면 confirmed_level로 초기값 설정
                         if (levelData.has_onboarding && levelData.confirmed_level) {
                             level = levelData.confirmed_level;
