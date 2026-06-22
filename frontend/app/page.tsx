@@ -1,16 +1,7 @@
 "use client";
 
-// useState: 컴포넌트 안에서 상태(데이터)를 관리하는 React Hook
-// 상태가 바뀌면 컴포넌트가 자동으로 다시 렌더링됨
-import { useState } from "react";
-
-// Next.js의 라우터 - 페이지 이동에 사용
-// Link 컴포넌트 대신 useRouter를 쓰는 이유:
-// 버튼 클릭 후 데이터를 가지고 이동해야 하기 때문
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
-// useAuth: 현재 로그인한 유저 정보를 가져오는 커스텀 훅
-// user가 null이면 비로그인 상태
 import { useAuth } from "./hooks/useAuth";
 
 // 수준 타입 정의 - TypeScript의 유니온 타입
@@ -51,20 +42,30 @@ const levels = [
     },
 ];
 
-export default function Home() {
-    //선택한 수준 상태 - null 이면 아무것도 선택 안 된 상태
+// useSearchParams를 쓰는 실제 컴포넌트를 분리
+// Next.js 14 규칙: useSearchParams()는 반드시 Suspense 경계 안에서만 사용 가능
+// 이유: 서버사이드 렌더링(SSR) 중에 useSearchParams()가 호출되면
+//       빌드 타임에 에러가 발생하기 때문
+// 해결: 실제 로직을 HomeContent로 분리하고,
+//       Home(export default)에서 Suspense로 감싸서 클라이언트에서만 실행되도록 보장
+// 참고: onboarding/quiz/page.tsx, onboarding/result/page.tsx와 동일한 패턴
+function HomeContent() {
+    // 선택한 수준 상태 - null이면 아무것도 선택 안 된 상태
     const [selectedLevel, setSelectedLevel] = useState<level | null>(null);
 
     // 현재 선택된 모드 (진단 or 문제 풀기)
     const [mode, setMode] = useState<Mode>(null);
 
-    // Next.js 라우터 인스턴스
+    // Next.js 라우터 인스턴스 - 페이지 이동에 사용
     const router = useRouter();
 
     // 현재 로그인한 유저 정보
     // user가 null이면 비로그인 상태
     const { user } = useAuth();
 
+    // URL 쿼리 파라미터 읽기
+    // problems/page.tsx에서 온보딩 안 한 사용자를 /?needOnboarding=true로 리디렉션
+    // 이 값이 있으면 "진단하기를 먼저 해주세요" 안내 메시지를 표시
     const searchParams = useSearchParams();
     const needOnboarding = searchParams.get("needOnboarding");
 
@@ -72,6 +73,7 @@ export default function Home() {
     const handleStart = () => {
         if (mode === "practice") {
             // 문제 풀기는 로그인 없어도 목록 볼 수 있음
+            // (problems/page.tsx에서 온보딩 여부를 체크해서 리디렉션)
             router.push("/problems");
             return;
         }
@@ -87,21 +89,6 @@ export default function Home() {
         }
     };
 
-    // 다음 단계로 이동하는 함수
-    // 선택한 수준을 URL 쿼리 파라미터로 전달
-    // ex: /onboarding/quiz?level=beginner
-    // const handleNext = () => {
-    //     if (!selectedLevel) return;
-
-    //     // 비로그인 상태면 로그인 페이지로 이동
-    //     if (!user) {
-    //         router.push("/auth/login");
-    //         return;
-    //     }
-
-    //     router.push(`/onboarding/quiz?level=${selectedLevel}`);
-    // };
-
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
             {/* 헤더 */}
@@ -110,11 +97,14 @@ export default function Home() {
                 <p className="text-lg text-gray-600 dark:text-gray-400">AI와 함께, 이해는 스스로</p>
             </div>
 
+            {/* 온보딩 안내 메시지 */}
+            {/* problems/page.tsx에서 진단 안 한 사용자를 리디렉션할 때만 표시 */}
+            {/* 사용자가 "왜 홈으로 돌아왔는지" 이유를 바로 알 수 있도록 안내 */}
             {needOnboarding && (
                 <div
                     className="mb-6 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20
-                border border-yellow-300 dark:border-yellow-700 rounded-xl text-center
-                w-full max-w-3xl"
+                    border border-yellow-300 dark:border-yellow-700 rounded-xl text-center
+                    w-full max-w-3xl"
                 >
                     <p className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
                         📋 문제 풀기 전에 먼저 진단하기를 완료해주세요
@@ -211,11 +201,11 @@ export default function Home() {
                     onClick={handleStart}
                     disabled={!mode || (mode === "diagnose" && !selectedLevel)}
                     className={`w-full py-4 rounded-xl font-semibold text-lg transition-all
-        ${
-            !mode || (mode === "diagnose" && !selectedLevel)
-                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
-        }`}
+                        ${
+                            !mode || (mode === "diagnose" && !selectedLevel)
+                                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                        }`}
                 >
                     {mode === "practice"
                         ? "문제 풀러 가기 →"
@@ -227,5 +217,23 @@ export default function Home() {
                 </button>
             </div>
         </main>
+    );
+}
+
+// Suspense로 HomeContent를 감싸서 export
+// Next.js 14: useSearchParams()를 쓰는 컴포넌트는 반드시 Suspense 경계 필요
+// Suspense가 없으면 빌드 타임에 "useSearchParams() should be wrapped in a suspense boundary" 에러 발생
+// fallback: HomeContent가 로드되기 전 잠깐 보여줄 로딩 화면
+export default function Home() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                    <p className="text-gray-600 dark:text-gray-400">로딩 중...</p>
+                </main>
+            }
+        >
+            <HomeContent />
+        </Suspense>
     );
 }
