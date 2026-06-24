@@ -2,6 +2,8 @@
 # 유저당 하루 API 호출 횟수를 제한하는 기능
 # DB 기반으로 구현 (Redis 없이 Supabase PostgreSQL 활용)
 
+import os
+
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -22,6 +24,11 @@ RATE_LIMITS = {
     #   - gate(10)와 비슷한 수준으로 맞춤: gate도 "이해도를 깊게 검증"하는
     #     무거운 작업이라 같은 선상에 둠
 }
+
+# 게스트 계정 user_id (Rate Limit 제외 대상)
+# OKKY 등 외부 공개 시 여러 명이 공유하는 계정이라
+# 일반 유저와 동일한 제한을 적용하면 금방 소진되어 핵심 기능을 못 보고 이탈함
+GUEST_USER_ID = os.getenv("GUEST_USER_ID", "")
 
 
 # ================================
@@ -47,6 +54,11 @@ async def check_rate_limit(
         api_type 문자열을 키로 사용해 O(1) 시간복잡도로 제한값을 조회함
         (만약 리스트로 구현했다면 매번 순회해야 해서 O(n)이 걸림)
     """
+
+    # 게스트 계정은 Rate Limit 체크 스킵
+    # 여러 명이 공유하는 계정이므로 제한을 두면 OKKY 체험단이 핵심 기능을 못 봄
+    if GUEST_USER_ID and user_id == GUEST_USER_ID:
+        return
 
     # api_type 유효성 검증
     # RATE_LIMITS 딕셔너리에 없는 타입이면 코드 작성 실수이므로 즉시 에러
