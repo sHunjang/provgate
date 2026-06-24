@@ -100,7 +100,7 @@ function HomeContent() {
         const supabase = createClient();
         const { error } = await supabase.auth.signInWithPassword({
             email: "guest@provgate.com",
-            password: "ProvGate2026!",
+            password: process.env.NEXT_PUBLIC_GUEST_PASSWORD!,
         });
         if (error) {
             alert("게스트 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
