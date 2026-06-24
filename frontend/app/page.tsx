@@ -4,6 +4,9 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./hooks/useAuth";
 
+// 게스트 버튼 추가를 위한 createClient import
+import { createClient } from "./lib/supabase";
+
 // 수준 타입 정의 - TypeScript의 유니온 타입
 // 이 3가지 문자열만 허용, 오타 방지
 type level = "beginner" | "intermediate" | "advanced";
@@ -89,6 +92,23 @@ function HomeContent() {
         }
     };
 
+    // 게스트 로그인 핸들러
+    // OKKY 등 외부 공개용 — 회원가입 없이 전체 흐름 체험 가능
+    // guest@provgate.com 공유 계정으로 자동 로그인
+    // 주의: 여러 명이 동시에 같은 계정을 쓰므로 통계/기록은 의미 없음
+    const handleGuestLogin = async () => {
+        const supabase = createClient();
+        const { error } = await supabase.auth.signInWithPassword({
+            email: "guest@provgate.com",
+            password: "ProvGate2026!",
+        });
+        if (error) {
+            alert("게스트 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            return;
+        }
+        router.push("/problems");
+    };
+
     return (
         <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
             {/* 헤더 */}
@@ -111,6 +131,34 @@ function HomeContent() {
                     </p>
                 </div>
             )}
+
+            {/* 게스트 체험 섹션 — "무엇을 하실건가요?" 위에 배치 */}
+            {/* 낯선 사용자가 회원가입 없이 바로 체험할 수 있도록 상단에 노출 */}
+            <div className="w-full max-w-3xl mb-6">
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-200 dark:border-indigo-800">
+                    <div className="flex items-start gap-3 mb-3">
+                        <span className="text-2xl">🧪</span>
+                        <div>
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                                회원가입 없이 바로 체험하기
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                게이트, AI 힌트, 설계 훈련까지 전체 기능을 바로 경험해보세요
+                            </p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mb-3 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+                        ⚠️ 게스트 계정은 여러 명이 공유합니다. 통계/기록은 체험용으로만 참고하세요.
+                    </p>
+                    <button
+                        onClick={handleGuestLogin}
+                        className="w-full py-3 rounded-xl bg-indigo-600 text-white
+                font-semibold hover:bg-indigo-700 transition-all text-sm"
+                    >
+                        🧪 게스트로 체험하기 →
+                    </button>
+                </div>
+            </div>
 
             <div className="w-full max-w-3xl">
                 {/* 모드 선택 */}
@@ -201,11 +249,11 @@ function HomeContent() {
                     onClick={handleStart}
                     disabled={!mode || (mode === "diagnose" && !selectedLevel)}
                     className={`w-full py-4 rounded-xl font-semibold text-lg transition-all
-                        ${
-                            !mode || (mode === "diagnose" && !selectedLevel)
-                                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
-                        }`}
+        ${
+            !mode || (mode === "diagnose" && !selectedLevel)
+                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+        }`}
                 >
                     {mode === "practice"
                         ? "문제 풀러 가기 →"
