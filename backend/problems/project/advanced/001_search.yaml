@@ -1,0 +1,45 @@
+title: "검색 기능 설계하기"
+description: |
+  키워드로 게시글을 검색하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "advanced"
+concept_tag: "함수 설계, 검색 알고리즘"
+problem_type: "design_implementation"
+order_idx: 1
+language: "python"
+
+requirements: |
+  검색어를 입력받아 게시글 목록에서 관련 글을 찾아 반환하는 함수를 만드세요.
+  어떤 기준으로 검색하고, 결과를 어떻게 정렬할지 직접 설계해야 합니다.
+
+thinking_hints:
+  - "검색어가 비어있으면 어떻게 처리할까요?"
+  - "제목만 검색할까요, 내용도 포함할까요?"
+  - "대소문자 구분은 어떻게 할까요?"
+  - "검색 결과가 없으면 어떻게 처리할까요?"
+  - "결과를 어떤 기준으로 정렬할까요?"
+
+reference_points:
+  - "빈 검색어 처리 여부"
+  - "제목/내용 검색 범위 설계"
+  - "대소문자 구분 처리 여부"
+  - "결과 정렬 기준 (최신순, 관련도순 등)"
+  - "검색 결과 없을 때 처리"
+
+starter_codes:
+  python: |
+    def solution(keyword, posts):
+        # posts: 게시글 목록
+        # [{"id": "post_001", "title": "제목", "content": "내용", "created_at": "2026-01-01"}]
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '["파이썬", [{"id": "1", "title": "파이썬 기초", "content": "변수와 함수", "created_at": "2026-01-01"}, {"id": "2", "title": "자바스크립트", "content": "파이썬과 비교", "created_at": "2026-01-02"}]]'
+    output: '{"success": true, "results": [{"id": "1", "title": "파이썬 기초"}, {"id": "2", "title": "자바스크립트"}], "count": 2}'
+  - input: '["", [{"id": "1", "title": "파이썬", "content": "내용", "created_at": "2026-01-01"}]]'
+    output: '{"success": false, "message": "검색어를 입력해주세요."}'
+  - input: '["존재하지않는키워드", [{"id": "1", "title": "파이썬", "content": "내용", "created_at": "2026-01-01"}]]'
+    output: '{"success": true, "results": [], "count": 0}'

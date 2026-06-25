@@ -23,4 +23,4 @@ node_modules/
 *.swp
 
 # Problem YAML files (managed locally)
-backend/problems/
+# backend/problems/

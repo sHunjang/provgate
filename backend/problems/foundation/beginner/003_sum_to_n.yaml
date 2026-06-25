@@ -1,0 +1,27 @@
+title: "1부터 N까지 합"
+level: "beginner"
+concept_tag: "반복문, 누적합"
+order_idx: 3
+
+description: |
+  정수 N을 입력받아 1부터 N까지의 합을 반환하는 함수를 작성하세요.
+
+  예시:
+  - solution(5) → 15
+  - solution(10) → 55
+
+starter_codes:
+  python: |
+    def solution(n):
+        # 여기에 코드를 작성하세요
+        return
+
+test_cases:
+  - input: "[5]"
+    output: "15"
+  - input: "[10]"
+    output: "55"
+  - input: "[1]"
+    output: "1"
+
+hint_keywords: "반복문(for/while), 누적합, range(), sum()"

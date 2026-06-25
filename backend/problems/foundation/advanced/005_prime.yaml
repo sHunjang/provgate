@@ -1,0 +1,27 @@
+title: "소수 판별"
+level: "advanced"
+concept_tag: "알고리즘, 소수판별"
+order_idx: 5
+
+description: |
+  정수 N을 입력받아 소수이면 True, 아니면 False를 반환하는 함수를 작성하세요.
+
+  예시:
+  - solution(7) → True
+  - solution(4) → False
+
+starter_codes:
+  python: |
+    def solution(n):
+        # 소수 판별 프로그램을 작성하세요
+        return
+
+test_cases:
+  - input: "[7]"
+    output: "true"
+  - input: "[4]"
+    output: "false"
+  - input: "[13]"
+    output: "true"
+
+hint_keywords: "2부터 √n까지 나눠보기, math.sqrt(), 나머지 연산"

@@ -1,0 +1,52 @@
+title: "데코레이터 실행 결과 예측"
+level: "advanced"
+concept_tag: "데코레이터, 클로저"
+order_idx: 6
+language: "python"
+track: "prompt"
+problem_type: "ai_reading"
+answer_type: "multiple_choice"
+
+description: |
+  아래 AI가 작성한 데코레이터 코드를 읽고 실행 결과를 예측해보세요.
+  코드를 직접 실행하지 말고, 머릿속으로 흐름을 따라가보세요.
+
+ai_code: |
+  def logger(func):
+      def wrapper(*args, **kwargs):
+          print(f"호출: {func.__name__}")
+          result = func(*args, **kwargs)
+          print(f"완료: {func.__name__}")
+          return result
+      return wrapper
+
+  @logger
+  def add(a, b):
+      return a + b
+
+  total = add(3, 5)
+  print(f"결과: {total}")
+
+questions:
+  - question: "위 코드를 실행했을 때 출력 순서로 올바른 것은?"
+    answer: 1
+    choices:
+      - "결과: 8 → 호출: add → 완료: add"
+      - "호출: add → 완료: add → 결과: 8"
+      - "호출: add → 결과: 8 → 완료: add"
+      - "완료: add → 호출: add → 결과: 8"
+    explanation: "데코레이터의 wrapper 함수가 실행되면서 '호출: add' 출력 → add(3,5) 실행 → '완료: add' 출력 → 반환값 8이 total에 저장 → '결과: 8' 출력 순서입니다."
+
+  - question: "@logger 데코레이터를 쓰지 않고 동일한 효과를 내려면?"
+    answer: 2
+    choices:
+      - "add = add(logger)"
+      - "logger = logger(add)"
+      - "add = logger(add)"
+      - "add(logger())"
+    explanation: "@logger는 add = logger(add)와 동일합니다. 데코레이터 문법은 함수를 인자로 받아 새 함수를 반환하는 패턴의 문법적 설탕(syntactic sugar)입니다."
+
+test_cases: []
+
+starter_codes:
+  python: ""

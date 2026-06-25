@@ -1,0 +1,26 @@
+title: "딕셔너리 키/값 뒤집기"
+level: "intermediate"
+concept_tag: "딕셔너리, 반복문"
+order_idx: 5
+
+description: |
+  딕셔너리를 입력받아 키와 값을 서로 바꾼 딕셔너리를 반환하는 함수를 작성하세요.
+
+  예시:
+  - solution({"a": "1", "b": "2"}) → {"1": "a", "2": "b"}
+
+starter_codes:
+  python: |
+    def solution(d):
+        # 여기에 코드를 작성하세요
+        return
+
+test_cases:
+  - input: '[{"a": "1", "b": "2", "c": "3"}]'
+    output: '{"1": "a", "2": "b", "3": "c"}'
+  - input: '[{"hello": "world", "foo": "bar"}]'
+    output: '{"world": "hello", "bar": "foo"}'
+  - input: '[{"key": "value"}]'
+    output: '{"value": "key"}'
+
+hint_keywords: "딕셔너리 순회, items(), 키/값 교환"

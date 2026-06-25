@@ -1,0 +1,39 @@
+title: "회원가입 기능 설계하기"
+description: |
+  이메일과 비밀번호로 회원가입하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "beginner"
+concept_tag: "함수 설계, 입력값 검증"
+problem_type: "design_implementation"
+order_idx: 1
+language: "python"
+
+requirements: |
+  이메일과 비밀번호를 입력받아 회원가입을 처리하는 함수를 만드세요.
+  어떤 경우를 성공/실패로 처리할지는 직접 정해야 합니다.
+
+thinking_hints:
+  - "이메일 형식은 어떻게 확인할까요?"
+  - "이미 가입된 이메일이면 어떻게 처리할까요?"
+  - "비밀번호는 어떤 조건이 있어야 할까요?"
+
+reference_points:
+  - "이메일 형식 검증 여부"
+  - "이메일 중복 체크 여부"
+  - "비밀번호 최소 길이 조건 여부"
+  - "비밀번호 평문 저장 여부 (암호화 고려)"
+
+starter_codes:
+  python: |
+    def solution(email, password, existing_users):
+        # existing_users: 이미 가입된 이메일 목록 (리스트)
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '["new@example.com", "password123", []]'
+    output: '{"success": true, "message": "회원가입이 완료되었습니다."}'
+  - input: '["new@example.com", "password123", ["new@example.com"]]'
+    output: '{"success": false, "message": "이미 가입된 이메일입니다."}'

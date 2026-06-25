@@ -1,0 +1,42 @@
+title: "게시글 작성 기능 설계하기"
+description: |
+  제목과 내용을 입력받아 게시글을 작성하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "beginner"
+concept_tag: "함수 설계, 입력값 검증"
+problem_type: "design_implementation"
+order_idx: 3
+language: "python"
+
+requirements: |
+  사용자 ID, 제목, 내용을 입력받아 게시글을 작성하는 함수를 만드세요.
+  어떤 경우를 성공/실패로 처리할지는 직접 정해야 합니다.
+
+thinking_hints:
+  - "제목이 비어있는 경우는 어떻게 처리할까요?"
+  - "내용 길이에 제한을 둘까요?"
+  - "제목 길이에는 어떤 제한이 필요할까요?"
+  - "로그인하지 않은 사용자가 글을 쓰려고 하면 어떻게 처리할까요?"
+
+reference_points:
+  - "제목 빈값 검증 여부"
+  - "내용 빈값 검증 여부"
+  - "제목 최대 길이 제한 여부"
+  - "비로그인 사용자 처리 여부"
+
+starter_codes:
+  python: |
+    def solution(user_id, title, content):
+        # user_id: 작성자 ID (None이면 비로그인)
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '["user123", "첫 번째 게시글", "안녕하세요!"]'
+    output: '{"success": true, "message": "게시글이 작성되었습니다."}'
+  - input: '["user123", "", "내용만 있어요"]'
+    output: '{"success": false, "message": "제목을 입력해주세요."}'
+  - input: '[null, "제목", "내용"]'
+    output: '{"success": false, "message": "로그인이 필요합니다."}'

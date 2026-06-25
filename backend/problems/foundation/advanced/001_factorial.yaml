@@ -1,0 +1,28 @@
+title: "재귀로 팩토리얼"
+level: "advanced"
+concept_tag: "재귀함수"
+order_idx: 1
+
+description: |
+  정수 N을 입력받아 N! (팩토리얼)을 반환하는 함수를 작성하세요.
+  재귀함수를 사용해서 구현하세요.
+
+  예시:
+  - solution(5) → 120
+  - solution(0) → 1
+
+starter_codes:
+  python: |
+    def solution(n):
+        # 재귀함수로 팩토리얼을 구하세요
+        return
+
+test_cases:
+  - input: "[5]"
+    output: "120"
+  - input: "[0]"
+    output: "1"
+  - input: "[10]"
+    output: "3628800"
+
+hint_keywords: "재귀함수, 기저 조건(base case), n * solution(n-1)"

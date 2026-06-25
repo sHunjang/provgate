@@ -1,0 +1,50 @@
+title: "리스트 중복 제거 버그 찾기"
+level: "intermediate"
+concept_tag: "리스트, 반복문"
+order_idx: 7
+language: "python"
+track: "prompt"
+problem_type: "ai_debugging"
+answer_type: "code_edit"
+
+description: |
+  AI가 작성한 아래 코드에는 논리적 버그가 있습니다.
+  어떤 입력값에서 잘못된 결과가 나오는지 찾고, 코드를 수정해보세요.
+
+ai_code: |
+  def remove_duplicates(numbers):
+      result = []
+      for i in range(len(numbers)):
+          if numbers[i] not in numbers[i+1:]:
+              result.append(numbers[i])
+      return result
+
+  print(remove_duplicates([1, 2, 2, 3, 1]))
+
+questions:
+  - question: "위 코드에서 remove_duplicates([1, 2, 2, 3, 1])의 실행 결과는?"
+    answer: 1
+    choices:
+      - "[1, 2, 3]"
+      - "[2, 3, 1]"
+      - "[1, 2, 2, 3]"
+      - "[3]"
+    explanation: "현재 코드는 뒤에 같은 값이 없는 요소만 남깁니다. 1은 인덱스 0에서 뒤에 1이 있으므로 제외, 2는 인덱스 1에서 뒤에 2가 있으므로 제외, 결과적으로 [2, 3, 1]이 됩니다."
+
+test_cases:
+  - input: "[[1, 2, 2, 3, 1]]"
+    output: "[1, 2, 3]"
+  - input: "[[4, 4, 4, 4]]"
+    output: "[4]"
+  - input: "[[1, 2, 3]]"
+    output: "[1, 2, 3]"
+
+starter_codes:
+  python: |
+    def solution(numbers):
+        # 중복을 제거하고 처음 등장한 순서를 유지하세요
+        result = []
+        for i in range(len(numbers)):
+            if numbers[i] not in numbers[i+1:]:
+                result.append(numbers[i])
+        return result

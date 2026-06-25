@@ -1,0 +1,52 @@
+title: "은행 계좌 클래스"
+level: "advanced"
+concept_tag: "클래스, 객체지향"
+order_idx: 2
+
+description: |
+  은행 계좌를 클래스로 구현하세요.
+  초기 잔액, 입금(deposit), 출금(withdraw), 잔액 조회(get_balance)를 구현하세요.
+  잔액이 부족할 경우 출금 시 "잔액 부족"을 반환하세요.
+
+  solution(1000, "deposit", 500) → 1500
+  solution(1000, "withdraw", 2000) → "잔액 부족"
+
+starter_codes:
+  python: |
+    def solution(initial_balance, action, amount):
+        # 은행 계좌 클래스를 구현하세요
+        class BankAccount:
+            def __init__(self, balance):
+                # 초기 잔액 설정
+                pass
+
+            def deposit(self, amount):
+                # 입금 구현
+                pass
+
+            def withdraw(self, amount):
+                # 출금 구현 (잔액 부족 시 "잔액 부족" 반환)
+                pass
+
+            def get_balance(self):
+                # 잔액 반환
+                pass
+
+        account = BankAccount(initial_balance)
+        if action == "deposit":
+            account.deposit(amount)
+        elif action == "withdraw":
+            result = account.withdraw(amount)
+            if result == "잔액 부족":
+                return result
+        return account.get_balance()
+
+test_cases:
+  - input: "[1000, \"deposit\", 500]"
+    output: "1500"
+  - input: "[1000, \"withdraw\", 500]"
+    output: "500"
+  - input: "[1000, \"withdraw\", 2000]"
+    output: '"잔액 부족"'
+
+hint_keywords: "클래스, __init__, self, 인스턴스 변수"

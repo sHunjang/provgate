@@ -1,0 +1,27 @@
+title: "단어 빈도수 세기"
+level: "intermediate"
+concept_tag: "딕셔너리"
+order_idx: 1
+
+description: |
+  단어 리스트를 입력받아 각 단어의 등장 횟수를 딕셔너리로 반환하는 함수를 작성하세요.
+  딕셔너리는 알파벳 순서로 정렬되어야 합니다.
+
+  예시:
+  - solution(["apple", "banana", "apple"]) → {"apple": 2, "banana": 1}
+
+starter_codes:
+  python: |
+    def solution(words):
+        # 여기에 코드를 작성하세요
+        return
+
+test_cases:
+  - input: '[["apple", "banana", "apple", "cherry", "banana", "apple"]]'
+    output: '{"apple": 3, "banana": 2, "cherry": 1}'
+  - input: '[["hello", "world", "hello"]]'
+    output: '{"hello": 2, "world": 1}'
+  - input: '[["a", "b", "c", "a", "b", "a"]]'
+    output: '{"a": 3, "b": 2, "c": 1}'
+
+hint_keywords: "딕셔너리, dict.get(), Counter, sorted()"

@@ -1,0 +1,44 @@
+title: "재귀함수 실행 결과 예측"
+level: "intermediate"
+concept_tag: "재귀함수"
+order_idx: 6
+language: "python"
+track: "prompt"
+problem_type: "ai_reading"
+answer_type: "multiple_choice"
+
+description: |
+  아래 AI가 작성한 재귀함수 코드를 읽고 실행 결과를 예측해보세요.
+  코드를 직접 실행하지 말고, 머릿속으로 흐름을 따라가보세요.
+
+ai_code: |
+  def mystery(n):
+      if n <= 1:
+          return n
+      return mystery(n - 1) + mystery(n - 2)
+
+  print(mystery(6))
+
+questions:
+  - question: "위 코드의 출력 결과는 무엇인가요?"
+    answer: 2
+    choices:
+      - "5"
+      - "6"
+      - "8"
+      - "13"
+    explanation: "mystery 함수는 피보나치 수열을 구합니다. mystery(6) = mystery(5) + mystery(4) = 5 + 3 = 8입니다."
+
+  - question: "mystery(1)의 반환값은 무엇인가요?"
+    answer: 0
+    choices:
+      - "1"
+      - "0"
+      - "2"
+      - "에러 발생"
+    explanation: "n <= 1 조건에 해당하므로 n 자체인 1을 반환합니다."
+
+test_cases: []
+
+starter_codes:
+  python: ""

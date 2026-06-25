@@ -1,0 +1,50 @@
+title: "나눗셈 함수 버그 찾기"
+level: "beginner"
+concept_tag: "조건문"
+order_idx: 2
+language: "python"
+track: "prompt"
+
+# 문제 유형: ai_debugging (AI 코드 디버깅)
+# 사용자가 버그가 있는 AI 코드를 찾고 수정하는 유형
+problem_type: "ai_debugging"
+answer_type: "code_edit"
+
+description: |
+  AI가 작성한 아래 코드에는 버그가 있습니다.
+  어떤 입력값에서 오류가 발생하는지 찾고, 코드를 수정해보세요.
+
+# 버그가 있는 AI 코드
+ai_code: |
+  def divide(a, b):
+      return a / b
+
+  print(divide(10, 2))   # 정상: 5.0
+  print(divide(10, 0))   # 버그 발생!
+
+# 이해 확인 질문
+questions:
+  - question: "이 코드에서 어떤 오류가 발생하나요?"
+    answer: 1
+    choices:
+      - "SyntaxError: 문법 오류"
+      - "ZeroDivisionError: 0으로 나누기 오류"
+      - "TypeError: 타입 오류"
+      - "NameError: 이름 오류"
+    explanation: "b=0일 때 0으로 나누면 ZeroDivisionError가 발생합니다."
+
+# 수정된 코드를 직접 작성 (code_edit 유형)
+test_cases:
+  - input: "[10, 2]"
+    output: "5.0"
+  - input: "[10, 0]"
+    output: "0으로 나눌 수 없습니다"
+  - input: "[9, 3]"
+    output: "3.0"
+
+starter_codes:
+  python: |
+    def solution(a, b):
+        # 버그를 수정하세요
+        # b가 0일 때를 처리해야 합니다
+        return a / b

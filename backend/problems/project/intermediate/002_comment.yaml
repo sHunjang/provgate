@@ -1,0 +1,43 @@
+title: "댓글 시스템 설계하기"
+description: |
+  게시글에 댓글을 작성하고 관리하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "intermediate"
+concept_tag: "함수 설계, 데이터 관리"
+problem_type: "design_implementation"
+order_idx: 2
+language: "python"
+
+requirements: |
+  게시글 ID, 작성자 ID, 댓글 내용을 입력받아 댓글을 작성하는 함수를 만드세요.
+  어떤 경우를 성공/실패로 처리할지는 직접 정해야 합니다.
+
+thinking_hints:
+  - "댓글 내용이 비어있으면 어떻게 처리할까요?"
+  - "존재하지 않는 게시글에 댓글을 달면 어떻게 처리할까요?"
+  - "댓글 길이 제한이 필요할까요?"
+  - "비로그인 사용자가 댓글을 달려고 하면 어떻게 처리할까요?"
+
+reference_points:
+  - "빈 댓글 내용 검증 여부"
+  - "게시글 존재 여부 확인"
+  - "댓글 최대 길이 제한 여부"
+  - "비로그인 사용자 처리 여부"
+
+starter_codes:
+  python: |
+    def solution(post_id, user_id, content, existing_posts):
+        # existing_posts: 존재하는 게시글 ID 목록
+        # user_id: 작성자 ID (None이면 비로그인)
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '["post_001", "user_123", "좋은 글이에요!", ["post_001", "post_002"]]'
+    output: '{"success": true, "message": "댓글이 작성되었습니다."}'
+  - input: '["post_999", "user_123", "댓글 내용", ["post_001", "post_002"]]'
+    output: '{"success": false, "message": "존재하지 않는 게시글입니다."}'
+  - input: '["post_001", null, "댓글 내용", ["post_001"]]'
+    output: '{"success": false, "message": "로그인이 필요합니다."}'

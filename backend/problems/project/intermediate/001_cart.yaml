@@ -1,0 +1,43 @@
+title: "장바구니 기능 설계하기"
+description: |
+  상품을 장바구니에 담고 관리하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "intermediate"
+concept_tag: "함수 설계, 데이터 관리"
+problem_type: "design_implementation"
+order_idx: 1
+language: "python"
+
+requirements: |
+  상품 ID와 수량을 입력받아 장바구니에 추가하는 함수를 만드세요.
+  어떤 경우를 성공/실패로 처리할지는 직접 정해야 합니다.
+
+thinking_hints:
+  - "수량이 0이거나 음수이면 어떻게 처리할까요?"
+  - "이미 담긴 상품을 또 담으면 어떻게 처리할까요?"
+  - "재고가 부족하면 어떻게 처리할까요?"
+  - "장바구니 최대 수량 제한이 필요할까요?"
+
+reference_points:
+  - "수량 유효성 검증 여부"
+  - "중복 상품 처리 방식 (수량 합산 vs 에러)"
+  - "재고 초과 처리 여부"
+  - "장바구니 총 금액 계산 여부"
+
+starter_codes:
+  python: |
+    def solution(cart, product_id, quantity, stock):
+        # cart: 현재 장바구니 {"product_id": quantity} 형태
+        # stock: 재고 수량
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '[{}, "product_001", 2, 10]'
+    output: '{"success": true, "message": "장바구니에 추가되었습니다.", "cart": {"product_001": 2}}'
+  - input: '[{"product_001": 2}, "product_001", 3, 10]'
+    output: '{"success": true, "message": "수량이 업데이트되었습니다.", "cart": {"product_001": 5}}'
+  - input: '[{}, "product_001", 15, 10]'
+    output: '{"success": false, "message": "재고가 부족합니다."}'

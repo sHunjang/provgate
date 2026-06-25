@@ -1,0 +1,28 @@
+title: "중앙값 구하기"
+level: "intermediate"
+concept_tag: "리스트, 정렬"
+order_idx: 3
+
+description: |
+  정수 리스트를 입력받아 중앙값을 반환하는 함수를 작성하세요.
+  리스트의 길이는 항상 홀수입니다.
+
+  예시:
+  - solution([3, 1, 4, 1, 5]) → 3
+  - solution([7, 2, 9]) → 7
+
+starter_codes:
+  python: |
+    def solution(numbers):
+        # 여기에 코드를 작성하세요
+        return
+
+test_cases:
+  - input: "[[3, 1, 4, 1, 5]]"
+    output: "3"
+  - input: "[[7, 2, 9]]"
+    output: "7"
+  - input: "[[1, 2, 3, 4, 5]]"
+    output: "3"
+
+hint_keywords: "sorted(), 리스트 인덱싱, 중간 인덱스 계산"

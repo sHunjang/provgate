@@ -1,0 +1,49 @@
+title: "AI 코드의 보안 취약점 찾기"
+level: "advanced"
+concept_tag: "보안, 입력값 검증"
+order_idx: 7
+language: "python"
+track: "prompt"
+problem_type: "ai_debugging"
+answer_type: "code_edit"
+
+description: |
+  AI가 작성한 아래 로그인 코드에는 보안 취약점이 있습니다.
+  어떤 문제가 있는지 찾고, 더 안전하게 수정해보세요.
+
+ai_code: |
+  def login(username, password, db):
+      query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+      result = db.execute(query)
+      if result:
+          return {"success": True, "user": result[0]}
+      return {"success": False}
+
+questions:
+  - question: "위 코드의 가장 심각한 보안 취약점은 무엇인가요?"
+    answer: 0
+    choices:
+      - "SQL 인젝션 취약점 — 사용자 입력이 쿼리에 직접 삽입됨"
+      - "비밀번호가 평문으로 저장됨"
+      - "반환값 형식이 일관되지 않음"
+      - "함수 이름이 너무 짧음"
+    explanation: "f-string으로 사용자 입력을 SQL에 직접 삽입하면 SQL 인젝션 공격에 취약합니다. username에 \"' OR '1'='1\"을 입력하면 모든 계정에 접근 가능합니다."
+
+test_cases:
+  - input: '["normal_user", "correct_password", {"execute": "return_user"}]'
+    output: '{"success": true}'
+  - input: '["admin", "wrong_password", {"execute": "no_result"}]'
+    output: '{"success": false}'
+  - input: '["injected_user", "anything", {"execute": "return_all"}]'
+    output: '{"success": false}'
+
+starter_codes:
+  python: |
+    def solution(username, password, db):
+        # SQL 인젝션을 방지하도록 코드를 수정하세요
+        # 힌트: 파라미터화된 쿼리(parameterized query)를 사용하세요
+        query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+        result = db.execute(query)
+        if result:
+            return {"success": True}
+        return {"success": False}

@@ -1,0 +1,44 @@
+title: "REST API 설계 AI 질문하기"
+level: "advanced"
+concept_tag: "API 설계, REST"
+order_idx: 8
+language: "python"
+track: "prompt"
+problem_type: "ai_question"
+answer_type: "multiple_choice"
+
+description: |
+  할일(Todo) 관리 REST API를 FastAPI로 만들어야 합니다.
+  AI에게 도움을 요청하려고 합니다.
+  아래 중 가장 좋은 프롬프트를 선택하세요.
+
+ai_code: ""
+
+questions:
+  - question: "Todo CRUD API를 만들 때 AI에게 가장 효과적인 질문은?"
+    answer: 3
+    choices:
+      - "FastAPI로 Todo API 만들어줘"
+      - "할일 관리 API 코드 짜줘"
+      - "FastAPI로 Todo API 만들어줘. GET, POST, PUT, DELETE 필요해"
+      - "FastAPI로 Todo CRUD API를 만들어줘. Todo 모델은 id(int), title(str), completed(bool)이고, GET /todos로 전체 조회, POST /todos로 생성, PUT /todos/{id}로 수정, DELETE /todos/{id}로 삭제가 필요해. 존재하지 않는 id 접근 시 404를 반환해줘"
+    explanation: |
+      좋은 API 설계 프롬프트의 조건:
+      1. 데이터 모델의 필드와 타입 명시
+      2. 각 엔드포인트의 HTTP 메서드와 경로 명시
+      3. 예외 처리 조건 명시 (404 등)
+      네 번째 선택지가 이 모든 조건을 만족합니다.
+
+  - question: "AI가 만든 API 코드에서 PUT /todos/{id}가 없을 때 가장 적절한 후속 질문은?"
+    answer: 1
+    choices:
+      - "PUT 메서드 추가해줘"
+      - "앞서 만든 코드에 PUT /todos/{id} 엔드포인트를 추가해줘. 요청 body로 title과 completed를 받고, 해당 id가 없으면 404를 반환해야 해"
+      - "수정 기능이 없어"
+      - "코드 다시 짜줘"
+    explanation: "후속 질문도 구체적이어야 합니다. 어떤 엔드포인트인지, 무엇을 받는지, 예외 처리는 어떻게 할지를 명시해야 의도한 코드를 받을 수 있습니다."
+
+test_cases: []
+
+starter_codes:
+  python: ""

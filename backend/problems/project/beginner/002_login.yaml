@@ -1,0 +1,42 @@
+title: "로그인 기능 설계하기"
+description: |
+  이메일과 비밀번호로 로그인하는 기능을 만드세요.
+  코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+  정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "beginner"
+concept_tag: "함수 설계, 입력값 검증"
+problem_type: "design_implementation"
+order_idx: 2
+language: "python"
+
+requirements: |
+  이메일과 비밀번호를 입력받아 로그인을 처리하는 함수를 만드세요.
+  어떤 경우를 성공/실패로 처리할지는 직접 정해야 합니다.
+
+thinking_hints:
+  - "입력값이 비어있는 경우는 어떻게 처리할까요?"
+  - "존재하지 않는 이메일로 로그인하면 어떻게 처리할까요?"
+  - "비밀번호가 틀렸을 때 어떤 메시지를 보여줄까요?"
+  - "로그인 성공 시 무엇을 반환해야 할까요?"
+
+reference_points:
+  - "빈 입력값 검증 여부"
+  - "존재하지 않는 이메일 처리 여부"
+  - "비밀번호 불일치 처리 여부"
+  - "성공 시 사용자 정보 반환 여부"
+
+starter_codes:
+  python: |
+    def solution(email, password, users):
+        # users: 가입된 사용자 딕셔너리 {"email": "password"} 형태
+        # 여기에 코드를 작성하세요
+        pass
+
+test_cases:
+  - input: '["user@example.com", "pass123", {"user@example.com": "pass123"}]'
+    output: '{"success": true, "message": "로그인이 완료되었습니다."}'
+  - input: '["user@example.com", "wrongpass", {"user@example.com": "pass123"}]'
+    output: '{"success": false, "message": "비밀번호가 올바르지 않습니다."}'
+  - input: '["unknown@example.com", "pass123", {"user@example.com": "pass123"}]'
+    output: '{"success": false, "message": "존재하지 않는 이메일입니다."}'

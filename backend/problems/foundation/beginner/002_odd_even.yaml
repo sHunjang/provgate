@@ -1,0 +1,27 @@
+title: "홀짝 판별"
+level: "beginner"
+concept_tag: "조건문, 나머지 연산"
+order_idx: 2
+
+description: |
+  정수 n을 입력받아 홀수면 "odd", 짝수면 "even"을 반환하는 함수를 작성하세요.
+
+  예시:
+  - solution(3) → "odd"
+  - solution(4) → "even"
+
+starter_codes:
+  python: |
+    def solution(n):
+        # 여기에 코드를 작성하세요
+        return
+
+test_cases:
+  - input: "[3]"
+    output: '"odd"'
+  - input: "[4]"
+    output: '"even"'
+  - input: "[0]"
+    output: '"even"'
+
+hint_keywords: "나머지 연산자(%), 조건문(if/else), return"
