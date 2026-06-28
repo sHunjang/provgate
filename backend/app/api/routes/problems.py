@@ -111,7 +111,11 @@ async def get_problems(
 # GET /api/problems/detail/{id}
 # 문제 상세 조회
 @router.get("/detail/{id}")
-async def get_problem(id: str, db: AsyncSession = Depends(get_db)):
+async def get_problem(
+    id: str,
+    email: str = "",    # 이전 제출 코드 조회용
+    db: AsyncSession = Depends(get_db)
+    ):
 
     result = await db.execute(
         text("""
@@ -133,7 +137,34 @@ async def get_problem(id: str, db: AsyncSession = Depends(get_db)):
             detail="문제를 찾을 수 없습니다."
         )
     
-    return dict(problem._mapping)
+    problem_data = dict(problem._mapping)
+
+    # 이전 제출 코드 조회 (email이 있을 때만)
+    # 히스토리에서 문제로 돌아올 때 에디터에 이전 코드를 자동으로 채워주기 위함
+    if email:
+        submission_result = await db.execute(
+            text("""
+                SELECT s.code
+                FROM submissions s
+                JOIN users u ON s.user_id = u.id
+                WHERE u.email = :email
+                AND s.problem_id = :problem_id
+                AND s.submitted_at IS NOT NULL
+                ORDER BY s.submitted_at DESC
+                LIMIT 1
+            """),
+            {"email": email, "problem_id": id}
+        )
+
+        submission = submission_result.fetchone()
+
+        # 이전 제출 코드가 있으면 포함, 없으면 None
+        problem_data["previous_code"] = submission._mapping["code"] if submission else None
+    
+    else:
+        problem_data["previous_code"] = None
+    
+    return problem_data
 
 
 # GET /api/problems/completed/{user_email}

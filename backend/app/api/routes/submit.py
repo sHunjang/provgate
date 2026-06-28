@@ -189,7 +189,11 @@ async def submit_solution(
             "hint_count": stats["hint_count"],
             "gate_attempts": stats["gate_attempts"],
             "time_spent_sec": stats["time_spent_sec"],
-        }
+        },
+
+        # 제출한 코드를 feedback 페이지에서 보요주기 위해 포함
+        # miny 피드백: "한번 제출하고 나가면 풀이를 다시 볼 방법이 없다"
+        "submitted_code": request.code
     }
 
 

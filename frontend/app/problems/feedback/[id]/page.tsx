@@ -67,6 +67,12 @@ export default function FeedbackPage() {
     // AI가 같은 화면에서 문제를 여러 개 중복 생성하는 것을 막음
     const [hasFetched, setHasFetched] = useState(false);
 
+    // 제출한 코드 (URL 쿼리 파라미터에서 가져옴)
+    const submittedCode = searchParams.get("code") || "";
+
+    // 코드 보기 토글 상태
+    const [showCode, setShowCode] = useState(false);
+
     // 컴포넌트 마운트 시 유사 문제 생성
     useEffect(() => {
         // user 정보가 아직 로딩 중(null)이면 기다림
@@ -171,6 +177,36 @@ export default function FeedbackPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* 내 제출 코드 */}
+                {submittedCode && (
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-gray-700 dark:text-gray-300">📝 내 제출 코드</h2>
+                            <button
+                                onClick={() => setShowCode(!showCode)}
+                                className="text-xs px-3 py-1.5 rounded-lg
+                    bg-gray-100 dark:bg-gray-700
+                    text-gray-600 dark:text-gray-300
+                    hover:bg-gray-200 dark:hover:bg-gray-600
+                    transition-all"
+                            >
+                                {showCode ? "숨기기 ▲" : "보기 ▼"}
+                            </button>
+                        </div>
+
+                        {showCode && (
+                            <pre
+                                className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl
+                text-sm text-gray-800 dark:text-gray-300
+                font-mono overflow-x-auto whitespace-pre-wrap
+                border border-gray-200 dark:border-gray-700"
+                            >
+                                {submittedCode}
+                            </pre>
+                        )}
+                    </div>
+                )}
 
                 {/* 유사 문제 추천 */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
