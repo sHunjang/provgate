@@ -139,6 +139,7 @@ async def get_stats(
     recent_result = await db.execute(
         text("""
             SELECT
+                p.id AS problem_id,
                 p.title,
                 p.level,
                 p.concept_tag,

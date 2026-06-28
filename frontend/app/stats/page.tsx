@@ -30,6 +30,9 @@ type Stats = {
     total_hints: number;
     total_gate_attempts: number;
     recent_submissions: {
+        // 신규: 문제 페이지로 이동하기 위해 problem_id 추가
+        // 백엔드 stats.py의 recent_submissions 쿼리에 p.id AS problem_id를 추가해야 함
+        problem_id: string;
         title: string;
         level: string;
         concept_tag: string;
@@ -268,9 +271,14 @@ export default function StatsPage() {
                     ) : (
                         <div className="space-y-3">
                             {stats.recent_submissions.map((sub, idx) => (
+                                // 신규: 카드 클릭 시 해당 문제 페이지로 이동
+                                // sub.problem_id는 백엔드 stats.py에서 p.id AS problem_id로 받아온 값
+                                // cursor-pointer + hover 효과로 클릭 가능한 카드임을 시각적으로 표시
                                 <div
                                     key={idx}
-                                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl"
+                                    onClick={() => router.push(`/problems/${sub.problem_id}`)}
+                                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl
+                                        cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-all"
                                 >
                                     <div className="flex items-center gap-3">
                                         {/* 완료 여부 아이콘 */}
