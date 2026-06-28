@@ -152,9 +152,20 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-600 max-h-[90vh] overflow-y-auto">
                 {/* 모달 헤더 */}
-                <div className="p-6 border-b border-gray-700">
-                    <h2 className="text-xl font-bold text-white">🔒 이해 확인 게이트</h2>
-                    <p className="text-sm text-gray-400 mt-1">같은 개념의 다른 문제를 풀어야 제출할 수 있어요</p>
+                <div className="p-6 border-b border-gray-700 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold text-white">🔒 이해 확인 게이트</h2>
+                        <p className="text-sm text-gray-400 mt-1">같은 개념의 다른 문제를 풀어야 제출할 수 있어요</p>
+                    </div>
+                    {/* 닫기 버튼 - miny 피드백 반영 */}
+                    {/* 게이트 도중 나가고 싶을 때 뒤로가기 외에 탈출 수단 제공 */}
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-white transition-all text-2xl leading-none ml-4 flex-shrink-0"
+                        aria-label="닫기"
+                    >
+                        ✕
+                    </button>
                 </div>
 
                 {/* 모달 바디 */}
