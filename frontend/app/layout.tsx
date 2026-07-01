@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 
-// GlobalHeader: AuthButton + ThemeToggle을 통합한 클라이언트 컴포넌트
-// 문제 풀이 페이지(/problems/[id])에서는 자동으로 숨겨짐
-// layout.tsx는 서버 컴포넌트라 usePathname 훅을 직접 쓸 수 없어서
-// 클라이언트 컴포넌트인 GlobalHeader로 분리
 import GlobalHeader from "@/app/components/GlobalHeader";
+
+// Noto Sans KR: next/font로 불러오면 빌드 시점에 폰트를 로컬에 저장하고
+// 자동으로 최적화(서브셋, preload)해줘서 구글 폰트 CDN 요청 없이 빠르게 로드돼
+// variable로 지정하면 CSS 변수로 사용 가능 (globals.css에서 font-family로 연결)
+const notoSansKR = Noto_Sans_KR({
+    subsets: ["latin"], // 한글은 서브셋 지정이 없어서 latin만 지정 (한글 자체는 자동 포함)
+    weight: ["300", "400", "500", "700", "900"], // 필요한 굵기만 로드 (용량 최적화)
+    variable: "--font-noto-sans-kr",
+    display: "swap", // 폰트 로드 전에는 시스템 폰트로 우선 표시 → 깜빡임(FOUT) 최소화
+});
 
 export const metadata: Metadata = {
     title: "ProvGate",
@@ -14,18 +21,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
-        // 기본값으로 dark 클래스 추가
-        // useTheme 훅이 localStorage에서 테마를 읽어서 변경하지만
-        // 초기 렌더링 시 dark가 기본값이므로 미리 추가
         <html
             lang="ko"
-            className="dark"
+            className={`dark ${notoSansKR.variable}`}
         >
             <body>
-                {/* GlobalHeader: 오른쪽 상단 고정 버튼 (로그인/로그아웃 + 다크모드)
-                    문제 풀이 페이지(/problems/[id])에서는 자체 헤더에 통합되므로 숨김
-                    그 외 모든 페이지에서는 우측 상단에 고정 표시
-                */}
                 <GlobalHeader />
                 {children}
             </body>

@@ -1,283 +1,419 @@
 "use client";
 
-import { useState, Suspense } from "react";
+// ============================================================
+// import 구문 설명
+// ============================================================
+// Suspense: 컴포넌트가 아직 준비 안 됐을 때 "로딩 중" 화면을 보여주는
+//   React 내장 컴포넌트. useSearchParams()가 값을 확정하기 전까지
+//   fallback UI를 보여주는 안전장치로 사용함.
+import { Suspense } from "react";
+
+// useRouter: 페이지 이동(라우팅)을 코드로 실행할 때 사용
+// useSearchParams: 현재 URL의 ?key=value 쿼리 파라미터를 읽는 훅
 import { useRouter, useSearchParams } from "next/navigation";
+
+// 커스텀 훅: 로그인한 사용자 정보를 어디서든 꺼내 쓸 수 있게 만든 자체 훅
 import { useAuth } from "./hooks/useAuth";
 
-// 게스트 버튼 추가를 위한 createClient import
+// Supabase 클라이언트 생성 함수 - DB/인증 서버와 통신하는 창구
 import { createClient } from "./lib/supabase";
 
-// 수준 타입 정의 - TypeScript의 유니온 타입
-// 이 3가지 문자열만 허용, 오타 방지
-type level = "beginner" | "intermediate" | "advanced";
-
-// 모드 타입 정의
-// null: 아무것도 선택 안 된 상태
-// "diagnose": 진단하기 선택
-// "practice": 문제 풀기 선택
-type Mode = "diagnose" | "practice" | null;
-
-// 수준 카드 데이터 - 배열로 관리하면 UI 추가/수정이 쉬움
-const levels = [
-    {
-        id: "beginner" as level,
-        title: "입문자",
-        description: "파이썬을 처음 배우거나\n기초 문법을 막 익힌 단계",
-        icon: "🌱",
-        color: "border-green-400 hover:bg-green-50",
-        selectedColor: "border-green-400 bg-green-50",
-    },
-    {
-        id: "intermediate" as level,
-        title: "초급자",
-        description: "변수, 조건문, 반복문을 알고\n함수와 리스트를 다룰 수 있는 단계",
-        icon: "🔥",
-        color: "border-yellow-400 hover:bg-yellow-50",
-        selectedColor: "border-yellow-400 bg-yellow-50",
-    },
-    {
-        id: "advanced" as level,
-        title: "중급자",
-        description: "클래스, 재귀, 알고리즘 기초를 알고\n실무 경험이 있는 단계",
-        icon: "⚡️",
-        color: "border-blue-400 hover:bg-blue-50",
-        selectedColor: "border-blue-400 bg-blue-50",
-    },
-];
-
-// useSearchParams를 쓰는 실제 컴포넌트를 분리
-// Next.js 14 규칙: useSearchParams()는 반드시 Suspense 경계 안에서만 사용 가능
-// 이유: 서버사이드 렌더링(SSR) 중에 useSearchParams()가 호출되면
-//       빌드 타임에 에러가 발생하기 때문
-// 해결: 실제 로직을 HomeContent로 분리하고,
-//       Home(export default)에서 Suspense로 감싸서 클라이언트에서만 실행되도록 보장
-// 참고: onboarding/quiz/page.tsx, onboarding/result/page.tsx와 동일한 패턴
+// ============================================================
+// HomeContent — 실제 로직이 들어있는 컴포넌트
+// ============================================================
+// Next.js 14 규칙: useSearchParams()를 쓰는 컴포넌트는
+// 반드시 <Suspense> 경계 안에 있어야 함 (하단 Home() 참고)
 function HomeContent() {
-    // 선택한 수준 상태 - null이면 아무것도 선택 안 된 상태
-    const [selectedLevel, setSelectedLevel] = useState<level | null>(null);
-
-    // 현재 선택된 모드 (진단 or 문제 풀기)
-    const [mode, setMode] = useState<Mode>(null);
-
-    // Next.js 라우터 인스턴스 - 페이지 이동에 사용
     const router = useRouter();
-
-    // 현재 로그인한 유저 정보
-    // user가 null이면 비로그인 상태
     const { user } = useAuth();
-
-    // URL 쿼리 파라미터 읽기
-    // problems/page.tsx에서 온보딩 안 한 사용자를 /?needOnboarding=true로 리디렉션
-    // 이 값이 있으면 "진단하기를 먼저 해주세요" 안내 메시지를 표시
     const searchParams = useSearchParams();
+
+    // /problems(구 경로)에서 진단 안 한 사용자를 리디렉션할 때 붙는 쿼리
+    // .get()은 값이 없으면 null 반환 → 조건부 렌더링에 활용
     const needOnboarding = searchParams.get("needOnboarding");
 
-    // 시작 버튼 핸들러
-    const handleStart = () => {
-        if (mode === "practice") {
-            // 문제 풀기는 로그인 없어도 목록 볼 수 있음
-            // (problems/page.tsx에서 온보딩 여부를 체크해서 리디렉션)
-            router.push("/problems");
-            return;
-        }
+    // ------------------------------------------------------------
+    // 이벤트 핸들러
+    // ------------------------------------------------------------
 
-        // 진단하기는 로그인 필요
+    // "진단 시작하기" 버튼 클릭 시 실행
+    const handleDiagnoseStart = () => {
+        // 비로그인이면 로그인 페이지로 먼저 보냄
+        // (진단 결과를 DB에 저장하려면 user_id가 필요하기 때문)
         if (!user) {
             router.push("/auth/login");
             return;
         }
-
-        if (mode === "diagnose" && selectedLevel) {
-            router.push(`/onboarding/quiz?level=${selectedLevel}`);
-        }
+        router.push("/onboarding/quiz");
     };
 
-    // 게스트 로그인 핸들러
-    // OKKY 등 외부 공개용 — 회원가입 없이 전체 흐름 체험 가능
-    // guest@provgate.com 공유 계정으로 자동 로그인
-    // 주의: 여러 명이 동시에 같은 계정을 쓰므로 통계/기록은 의미 없음
+    // "게스트로 체험하기" 버튼 클릭 시 실행
+    // async/await: 서버 응답을 "기다려야" 하는 비동기 작업 처리 문법
     const handleGuestLogin = async () => {
         const supabase = createClient();
+
+        // 여러 사람이 공유하는 게스트 계정으로 자동 로그인
+        // 회원가입 절차 없이 전체 기능을 체험할 수 있게 해서
+        // 온보딩 마찰(가입 장벽으로 인한 이탈)을 줄이는 전략
         const { error } = await supabase.auth.signInWithPassword({
             email: "guest@provgate.com",
+            // NEXT_PUBLIC_ 접두사가 붙어야 브라우저에서 접근 가능한 환경변수
             password: process.env.NEXT_PUBLIC_GUEST_PASSWORD!,
         });
+
         if (error) {
             alert("게스트 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
             return;
         }
+
         router.push("/problems");
     };
 
-    return (
-        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
-            {/* 헤더 */}
-            <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Provgate</h1>
-                <p className="text-lg text-gray-600 dark:text-gray-400">AI와 함께, 이해는 스스로</p>
-            </div>
+    // ============================================================
+    // 학습 트랙 데이터
+    // ============================================================
+    // slug: /learn 페이지의 activeTrack 값과 반드시 일치해야 라우팅이 정상 동작함
+    //   (예전 버그: onClick에 slug 대신 "/problems"를 하드코딩해서
+    //    3개 카드 전부 같은 페이지로 이동하던 문제 → slug 기반으로 수정)
+    // dot: 트랙 상징색 (아이콘, 우측 점)
+    // bg : dot의 옅은 배경 버전 — globals.css에 이미 정의된 -bg 변수를 그대로 재사용
+    //   (색상 하드코딩 대신 기존 팔레트 재사용 → 다크모드 전환 시 자동 대응)
+    const tracks = [
+        {
+            slug: "foundation",
+            icon: "ti-code",
+            name: "Python 기초",
+            desc: "변수, 조건문, 함수부터 알고리즘까지",
+            count: "15문제",
+            dot: "var(--accent)",
+            bg: "var(--accent-bg)",
+        },
+        {
+            slug: "project",
+            icon: "ti-layout-grid",
+            name: "실무 설계",
+            desc: "로그인, 장바구니, 댓글 시스템 설계",
+            count: "6문제",
+            dot: "var(--accent2)",
+            bg: "var(--accent2-bg)",
+        },
+        {
+            slug: "prompt",
+            icon: "ti-message-chatbot",
+            name: "AI 활용",
+            desc: "AI 코드 읽기, 디버깅, 프롬프트 설계",
+            count: "9문제",
+            dot: "var(--accent3)",
+            bg: "var(--accent3-bg)",
+        },
+    ];
 
-            {/* 온보딩 안내 메시지 */}
-            {/* problems/page.tsx에서 진단 안 한 사용자를 리디렉션할 때만 표시 */}
-            {/* 사용자가 "왜 홈으로 돌아왔는지" 이유를 바로 알 수 있도록 안내 */}
+    return (
+        <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+            {/* NAV */}
+            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+                <div className="font-bold text-sm tracking-tight">
+                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
+                </div>
+                <div className="flex items-center gap-5">
+                    <button
+                        onClick={() => router.push("/learn")}
+                        className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
+                    >
+                        문제
+                    </button>
+                    <button
+                        onClick={() => router.push("/stats")}
+                        className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
+                    >
+                        통계
+                    </button>
+                    {user ? (
+                        <span className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5">
+                            {user.email?.split("@")[0]}
+                        </span>
+                    ) : (
+                        <button
+                            onClick={() => router.push("/auth/login")}
+                            className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5"
+                        >
+                            로그인
+                        </button>
+                    )}
+                </div>
+            </nav>
+
+            {/* 온보딩 안내 배너 — needOnboarding 쿼리가 있을 때만 표시 */}
             {needOnboarding && (
-                <div
-                    className="mb-6 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20
-                    border border-yellow-300 dark:border-yellow-700 rounded-xl text-center
-                    w-full max-w-3xl"
-                >
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
+                <div className="px-6 py-3 bg-[var(--accent2-bg)] border-b border-[var(--border-c)] text-center">
+                    <p
+                        className="text-xs"
+                        style={{ color: "var(--accent2)" }}
+                    >
                         📋 문제 풀기 전에 먼저 진단하기를 완료해주세요
                     </p>
                 </div>
             )}
 
-            {/* 게스트 체험 섹션 — "무엇을 하실건가요?" 위에 배치 */}
-            {/* 낯선 사용자가 회원가입 없이 바로 체험할 수 있도록 상단에 노출 */}
-            <div className="w-full max-w-3xl mb-6">
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-200 dark:border-indigo-800">
-                    <div className="flex items-start gap-3 mb-3">
-                        <span className="text-2xl">🧪</span>
-                        <div>
-                            <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                                회원가입 없이 바로 체험하기
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                게이트, AI 힌트, 설계 훈련까지 전체 기능을 바로 경험해보세요
-                            </p>
-                        </div>
-                    </div>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mb-3 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
-                        ⚠️ 게스트 계정은 여러 명이 공유합니다. 통계/기록은 체험용으로만 참고하세요.
-                    </p>
+            {/* S1. 히어로 */}
+            <section className="px-6 py-14 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8 md:py-20">
+                <p className="text-[10px] tracking-widest uppercase text-[var(--text-3)] mb-4">AI 시대 코딩 학습</p>
+                <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
+                    AI와 함께,
+                    <br />
+                    <span style={{ color: "var(--accent)" }}>이해는 스스로</span>
+                </h1>
+                <p className="text-sm text-[var(--text-2)] leading-relaxed mb-7">
+                    복붙이 아니라 진짜로 이해하는 힘.
+                    <br />
+                    설계하고, 검증하고, 성장합니다.
+                </p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleDiagnoseStart}
+                        className="text-sm font-medium rounded px-6 py-3 transition-opacity hover:opacity-90"
+                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
+                    >
+                        진단 시작하기
+                    </button>
                     <button
                         onClick={handleGuestLogin}
-                        className="w-full py-3 rounded-xl bg-indigo-600 text-white
-                font-semibold hover:bg-indigo-700 transition-all text-sm"
+                        className="text-sm text-[var(--text-3)] underline underline-offset-4 hover:text-[var(--text-2)]"
                     >
-                        🧪 게스트로 체험하기 →
+                        게스트로 체험
                     </button>
                 </div>
-            </div>
+            </section>
 
-            <div className="w-full max-w-3xl">
-                {/* 모드 선택 */}
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-6 text-center">
-                    무엇을 하실건가요?
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                    {/* 진단하기 카드 */}
-                    <button
-                        onClick={() => {
-                            setMode("diagnose");
-                            setSelectedLevel(null);
-                        }}
-                        className={`p-6 rounded-xl border-2 transition-all text-left
-                            ${
-                                mode === "diagnose"
-                                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
-                                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300"
-                            }`}
-                    >
-                        <div className="text-4xl mb-3">🎯</div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">진단하기</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            AI가 나의 Python 실력을 진단하고{"\n"}맞춤 학습 수준을 추천해드려요
-                        </p>
-                    </button>
-
-                    {/* 문제 풀기 카드 */}
-                    <button
-                        onClick={() => {
-                            setMode("practice");
-                            setSelectedLevel(null);
-                        }}
-                        className={`p-6 rounded-xl border-2 transition-all text-left
-                            ${
-                                mode === "practice"
-                                    ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20"
-                                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-300"
-                            }`}
-                    >
-                        <div className="text-4xl mb-3">💻</div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">문제 풀기</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            바로 문제 목록으로 이동해서{"\n"}코딩 문제를 풀어보세요
-                        </p>
-                    </button>
+            {/* S2. 실태 (통계) */}
+            <section className="px-6 py-10 border-b border-[var(--border-c)] bg-[var(--bg-3)] max-w-3xl mx-auto md:px-8">
+                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-3">실태</p>
+                <h2 className="text-base font-bold tracking-tight mb-5">개발자들은 AI를 어떻게 느끼고 있을까요?</h2>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                    {[
+                        { num: "80", label: "개발자가 AI 도구를 이미 사용 중" },
+                        { num: "46", label: "코드 중 AI가 생성하는 비율" },
+                        { num: "66", label: "AI 코드 디버깅에 더 많은 시간 소요" },
+                    ].map((s) => (
+                        <div
+                            key={s.label}
+                            className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-3"
+                        >
+                            <div className="text-xl font-bold tracking-tight mb-1">
+                                {s.num}
+                                <span className="text-xs font-medium">%</span>
+                            </div>
+                            <div className="text-[10px] text-[var(--text-2)] leading-snug">{s.label}</div>
+                        </div>
+                    ))}
                 </div>
-
-                {/* 진단 모드일 때 수준 선택 */}
-                {mode === "diagnose" && (
-                    <div className="mb-8">
-                        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 text-center">
-                            현재 본인의 수준을 선택해주세요
-                        </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {levels.map((level) => (
-                                <button
-                                    key={level.id}
-                                    onClick={() => setSelectedLevel(level.id)}
-                                    className={`p-6 rounded-xl border-2 transition-all text-left
-                                        ${
-                                            selectedLevel === level.id
-                                                ? level.selectedColor
-                                                : `border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 ${level.color}`
-                                        }`}
-                                >
-                                    <div className="text-4xl mb-3">{level.icon}</div>
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                                        {level.title}
-                                    </h3>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line">
-                                        {level.description}
-                                    </p>
-                                </button>
-                            ))}
+                {[
+                    { label: "AI 코드를 완전히 이해하고 싶다", pct: 61 },
+                    { label: "AI 답변을 신뢰할 수 없을 때 사람에게 묻는다", pct: 75 },
+                ].map((bar) => (
+                    <div
+                        key={bar.label}
+                        className="mb-2"
+                    >
+                        <div className="flex justify-between mb-1">
+                            <span className="text-[11px] text-[var(--text-2)]">{bar.label}</span>
+                            <span className="text-[11px] font-bold">{bar.pct}%</span>
+                        </div>
+                        <div className="h-[3px] rounded-full bg-[var(--border-c)]">
+                            <div
+                                className="h-[3px] rounded-full"
+                                style={{ width: `${bar.pct}%`, background: "var(--accent)" }}
+                            />
                         </div>
                     </div>
-                )}
+                ))}
+                <p className="text-[9px] text-[var(--text-3)] mt-3">
+                    출처: Stack Overflow Developer Survey 2025 (응답자 90,000명+) · GitHub Copilot Research 2025
+                </p>
+            </section>
 
-                {/* 비로그인 안내 */}
-                {!user && mode === "diagnose" && (
-                    <p className="text-center text-sm text-red-500 mb-3">🔐 진단하기는 로그인이 필요해요</p>
-                )}
+            {/* S3. 작동 방식 */}
+            <section className="px-6 py-10 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8">
+                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">작동 방식</p>
+                <h2 className="text-base font-bold tracking-tight mb-5">3단계로 진짜 이해를 검증합니다</h2>
+                <div className="flex flex-col">
+                    {[
+                        {
+                            num: "01",
+                            title: "직접 설계하기",
+                            desc: "코드 짜기 전에 조건과 순서를 글로 먼저 써요. AI 없이 내 머릿속을 정리하는 첫 단계.",
+                            tag: "설계 훈련",
+                            bg: "var(--accent-bg)",
+                            fg: "var(--accent)",
+                        },
+                        {
+                            num: "02",
+                            title: "AI 힌트로 점검",
+                            desc: "막히면 AI가 방향만 알려줘요. 답을 주는 게 아니라 생각의 빈틈을 짚어줍니다.",
+                            tag: "AI 힌트",
+                            bg: "var(--accent2-bg)",
+                            fg: "var(--accent2)",
+                        },
+                        {
+                            num: "03",
+                            title: "이해 확인 게이트",
+                            desc: "같은 개념의 다른 문제로 진짜 이해했는지 검증. 통과해야만 제출 완료.",
+                            tag: "이해 검증",
+                            bg: "var(--accent3-bg)",
+                            fg: "var(--accent3)",
+                        },
+                    ].map((step, i, arr) => (
+                        <div
+                            key={step.num}
+                            className={`flex gap-4 py-3 ${i !== arr.length - 1 ? "border-b border-[var(--border-c)]" : ""}`}
+                        >
+                            <div
+                                className="text-xs font-bold min-w-[24px]"
+                                style={{ color: "var(--accent)" }}
+                            >
+                                {step.num}
+                            </div>
+                            <div>
+                                <div className="text-sm font-bold mb-1">{step.title}</div>
+                                <div className="text-xs text-[var(--text-2)] leading-relaxed">{step.desc}</div>
+                                <span
+                                    className="inline-block text-[9px] rounded px-2 py-0.5 mt-1.5"
+                                    style={{ background: step.bg, color: step.fg }}
+                                >
+                                    {step.tag}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
 
-                {/* 시작 버튼 */}
-                <button
-                    onClick={handleStart}
-                    disabled={!mode || (mode === "diagnose" && !selectedLevel)}
-                    className={`w-full py-4 rounded-xl font-semibold text-lg transition-all
-        ${
-            !mode || (mode === "diagnose" && !selectedLevel)
-                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
-        }`}
+            {/* ============================================
+                S4. 학습 트랙 섹션
+                버그 수정: 각 카드가 슬러그 기반으로 /learn?track=... 이동
+                UX 개선: 아이콘 원형 배경 + hover 시 화살표 이동으로
+                        "클릭 가능한 카드"라는 신호를 명확히 줌
+                ============================================ */}
+            <section className="px-6 py-10 border-b border-[var(--border-c)] bg-[var(--bg-3)] max-w-3xl mx-auto md:px-8">
+                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">학습 트랙</p>
+                <h2 className="text-base font-bold tracking-tight mb-4">내 목적에 맞는 트랙을 골라요</h2>
+                <div className="flex flex-col gap-2">
+                    {tracks.map((t) => (
+                        <button
+                            key={t.slug}
+                            // 핵심 수정: t.slug를 쿼리 파라미터로 넘겨서
+                            // /learn 페이지가 어떤 트랙을 초기 선택할지 알 수 있게 함
+                            onClick={() => router.push(`/learn?track=${t.slug}`)}
+                            className="group bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md px-4 py-3.5
+                                flex items-center justify-between text-left
+                                hover:border-[var(--border-strong)] hover:shadow-sm transition-all"
+                        >
+                            <div className="flex items-center gap-3">
+                                {/* 트랙 색상의 옅은 배경 원 + 아이콘 — 시각적 진입점 강화 */}
+                                <div
+                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: t.bg }}
+                                >
+                                    <i
+                                        className={`ti ${t.icon}`}
+                                        style={{ color: t.dot, fontSize: "16px" }}
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold mb-0.5">{t.name}</div>
+                                    <div className="text-[10px] text-[var(--text-2)]">{t.desc}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-[var(--text-3)]">{t.count}</span>
+                                {/* group-hover: 부모 버튼에 마우스를 올리면 이 아이콘도 함께 반응
+                                    → 클릭을 유도하는 미세한 움직임(microinteraction) */}
+                                <i
+                                    className="ti ti-chevron-right text-[var(--text-3)] transition-transform group-hover:translate-x-0.5"
+                                    style={{ fontSize: "14px" }}
+                                    aria-hidden="true"
+                                />
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </section>
+
+            {/* S5. 사회적 증명 */}
+            <section className="px-6 py-10 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8">
+                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">베타 피드백</p>
+                <h2 className="text-base font-bold tracking-tight mb-4">써본 분들의 이야기</h2>
+                <div className="flex flex-col gap-2">
+                    {[
+                        {
+                            text: "막상 설계를 글로 적어보니 어떻게 구현해야 할지 정리되더라고요. ChatGPT랑 달리 내 생각을 먼저 쓰게 하는 게 좋았어요.",
+                            who: "학생 · 베타",
+                        },
+                        {
+                            text: "내 의도를 명확하게 전달하면서 코드 작성 전 생각을 정리할 수 있는 점이 ChatGPT랑 다르게 느껴졌어요.",
+                            who: "주니어 개발자 · 베타",
+                        },
+                    ].map((r) => (
+                        <div
+                            key={r.who}
+                            className="bg-[var(--bg-3)] rounded-md px-4 py-3"
+                        >
+                            <p className="text-xs text-[var(--text-2)] leading-relaxed mb-2">{r.text}</p>
+                            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]">
+                                <div
+                                    className="w-1 h-1 rounded-full"
+                                    style={{ background: "var(--accent)" }}
+                                />
+                                {r.who}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* S6. 마지막 CTA */}
+            <section
+                className="px-6 py-16 text-center"
+                style={{ background: "var(--btn-bg)" }}
+            >
+                <h2
+                    className="text-xl font-bold tracking-tight mb-2 max-w-md mx-auto leading-snug"
+                    style={{ color: "var(--btn-text)" }}
                 >
-                    {mode === "practice"
-                        ? "문제 풀러 가기 →"
-                        : !user && mode === "diagnose"
-                          ? "로그인 후 진단하기 🔐"
-                          : mode === "diagnose" && selectedLevel
-                            ? "진단 시작하기 →"
-                            : "위에서 선택해주세요"}
+                    AI 의존에서 벗어나
+                    <br />
+                    진짜 실력을 키울 준비가 됐나요?
+                </h2>
+                <p
+                    className="text-xs mb-5"
+                    style={{ color: "var(--btn-text)", opacity: 0.5 }}
+                >
+                    AI가 제공하는 문제를 통해 나에게 맞는 수준을 알 수 있어요.
+                </p>
+                <button
+                    onClick={handleDiagnoseStart}
+                    className="inline-block text-xs font-medium rounded px-6 py-3"
+                    style={{ background: "var(--btn-text)", color: "var(--btn-bg)" }}
+                >
+                    지금 진단 시작하기 →
                 </button>
-            </div>
+            </section>
         </main>
     );
 }
 
-// Suspense로 HomeContent를 감싸서 export
-// Next.js 14: useSearchParams()를 쓰는 컴포넌트는 반드시 Suspense 경계 필요
-// Suspense가 없으면 빌드 타임에 "useSearchParams() should be wrapped in a suspense boundary" 에러 발생
-// fallback: HomeContent가 로드되기 전 잠깐 보여줄 로딩 화면
+// ============================================================
+// Home — 실제로 export되는 페이지 컴포넌트
+// ============================================================
+// useSearchParams()를 쓰는 컴포넌트는 Suspense로 감싸야 하는
+// Next.js 14 규칙 때문에 HomeContent를 바로 export하지 않음
 export default function Home() {
     return (
         <Suspense
             fallback={
-                <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-                    <p className="text-gray-600 dark:text-gray-400">로딩 중...</p>
+                <main className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+                    <p className="text-[var(--text-2)]">로딩 중...</p>
                 </main>
             }
         >
