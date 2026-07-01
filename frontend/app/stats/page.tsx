@@ -1,37 +1,27 @@
 "use client";
 
-// useState: 통계 데이터, 로딩 상태 관리
-// useEffect: 컴포넌트 마운트 시 통계 API 호출
 import { useState, useEffect } from "react";
-
-// useRouter: 페이지 이동
 import { useRouter } from "next/navigation";
-
-// useAuth: 현재 로그인한 유저 정보
 import { useAuth } from "@/app/hooks/useAuth";
-
-// Supabase 세션에서 JWT Access Token을 발급 받기 위한 호출
 import { createClient } from "@/app/lib/supabase";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
-// 통계 타입 정의
+// ============================================================
+// 타입 정의
+// ============================================================
 type Stats = {
     total_completed: number;
     beginner_completed: number;
     intermediate_completed: number;
     advanced_completed: number;
-
-    // 레벨별 전체 문제 수
     beginner_total: number;
     intermediate_total: number;
     advanced_total: number;
     all_total: number;
-
     avg_time_sec: number;
     total_hints: number;
     total_gate_attempts: number;
     recent_submissions: {
-        // 신규: 문제 페이지로 이동하기 위해 problem_id 추가
-        // 백엔드 stats.py의 recent_submissions 쿼리에 p.id AS problem_id를 추가해야 함
         problem_id: string;
         title: string;
         level: string;
@@ -43,29 +33,35 @@ type Stats = {
     }[];
 };
 
-// 난이도 한글 변환
 const levelLabel: Record<string, string> = {
     beginner: "입문자",
     intermediate: "초급자",
     advanced: "중급자",
 };
 
-// 난이도별 색상
-const levelColor: Record<string, string> = {
-    beginner: "text-green-400",
-    intermediate: "text-yellow-400",
-    advanced: "text-blue-400",
+// ============================================================
+// 신규: 난이도별 색상을 CSS 변수로 통일
+// ============================================================
+// 기존엔 text-green-400 같은 Tailwind 고정 색이었는데,
+// /learn 페이지에서 이미 확립한 매핑(입문=accent/초급=accent2/중급=accent3)을
+// 그대로 재사용해서 "앱 전체에서 같은 난이도는 같은 색"이라는
+// 시각적 일관성을 만듦 (사용자가 색만 보고도 난이도를 학습하게 됨)
+const levelColorVar: Record<string, string> = {
+    beginner: "var(--accent)",
+    intermediate: "var(--accent2)",
+    advanced: "var(--accent3)",
 };
 
 // 초 → MM:SS 형식으로 변환
+// Math.floor로 정수 분(minute)만 추출, % 연산자로 나머지 초(second)를 구함
+// padStart(2, "0"): 한 자리 수(예: 5)를 "05"처럼 두 자리로 맞춰줌
 const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 };
 
-// 날짜 포맷 변환
-// "2024-01-01T12:00:00" → "2024.01.01"
+// 날짜 포맷 변환 - toLocaleDateString으로 브라우저의 지역화(locale) 포맷 사용
 const formatDate = (dateStr: string): string => {
     return new Date(dateStr).toLocaleDateString("ko-KR", {
         year: "numeric",
@@ -78,27 +74,16 @@ export default function StatsPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
 
-    // 통계 데이터 상태
     const [stats, setStats] = useState<Stats | null>(null);
-
-    // 로딩 상태
     const [loading, setLoading] = useState(true);
 
-    // 비로그인 시 로그인 페이지로 이동
+    // 비로그인 시 로그인 페이지로 리디렉션
+    // 통계는 개인 데이터라 반드시 로그인 상태여야 조회 가능
     useEffect(() => {
         if (!authLoading && !user) {
             router.push("/auth/login");
         }
     }, [authLoading, user, router]);
-
-    // router를 의존성 배열에 넣는 이유?
-    // useEffect 안에서 router를 사용하고 있는데
-    // 의존성 배열에 없으면?
-    // React 입장에서:
-    // "router가 바뀔 수도 있는데
-    //  내가 그걸 감지를 못하잖아!"
-    //          ↓
-    //       경고 발생
 
     // 통계 데이터 조회
     useEffect(() => {
@@ -109,19 +94,22 @@ export default function StatsPage() {
                 setLoading(true);
 
                 // Supabase 세션에서 JWT Access Token 가져오기
+                // JWT(JSON Web Token): 로그인 시 발급되는 서명된 토큰으로,
+                // 서버는 이 토큰만 보고도 "누가 요청했는지" 검증 가능
+                // (매 요청마다 이메일/비밀번호를 다시 보낼 필요가 없음)
                 const supabase = createClient();
                 const {
                     data: { session },
                 } = await supabase.auth.getSession();
                 const token = session?.access_token;
 
-                // 토큰이 없으면 로그인 페이지로 이동
                 if (!token) {
                     router.push("/auth/login");
                     return;
                 }
 
-                // JWT 토큰을 Authorization 헤더에 포함해서 요청
+                // Authorization 헤더에 "Bearer {토큰}" 형식으로 담아 전송
+                // 백엔드는 이 헤더를 읽어서 토큰을 검증하고 유저를 식별함
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/stats`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -142,80 +130,80 @@ export default function StatsPage() {
         fetchStats();
     }, [authLoading, user, router]);
 
-    // 로딩 화면
+    // 로딩 화면 (인증 확인 중이거나 통계 조회 중)
     if (authLoading || loading) {
         return (
-            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-                <p className="text-gray-400">통계를 불러오는 중...</p>
+            <main className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
+                <p className="text-[var(--text-2)] text-sm">통계를 불러오는 중...</p>
             </main>
         );
     }
 
+    // stats가 아직 null이면(에러 등) 아무것도 렌더링 안 함
     if (!stats) return null;
 
-    // 전체 문제 수 대비 완료 비율 계산
-    // all_total: 백엔드에서 실제 problems 개수를 세서 내려준 값
-    // (하드코딩하면 문제 추가 시마다 수정해야 하므로 동적으로 받음)
     const totalProblems = stats.all_total;
 
-    // 분모가 0일 때 NaN 방지 (문제가 하나도 없는 극단적 상황 대비)
-    // 0으로 나누면 JavaScript에서 NaN이 나오고 화면이 깨짐
+    // 분모가 0일 때 NaN 방지
+    // (0 / 0 = NaN, NaN은 화면에 "NaN%"처럼 그대로 노출되는 버그를 유발)
     const completionRate = totalProblems > 0 ? Math.round((stats.total_completed / totalProblems) * 100) : 0;
 
-    // AI가 생성한 문제(track: ai_generated)의 제목은
-    // "원본 제목 #해시8자리" 형태로 DB에 저장되어 있음
-    // (problems.title에 UNIQUE 제약이 있어서, AI가 비슷한 제목을 여러 번
-    //  만들어도 충돌하지 않도록 submit.py에서 해시를 붙여 저장함)
-    // 화면에는 해시를 보여줄 필요가 없으므로 "#" 앞부분만 추출해서 표시
+    // AI가 생성한 문제 제목은 "원본 제목 #해시8자리" 형태로 저장돼 있어서
+    // "#" 기준으로 잘라 화면엔 원본 제목만 보여줌
     const displayTitle = (title: string) => title.split(" #")[0];
 
     return (
-        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-8">
-            <div className="max-w-4xl mx-auto">
-                {/* 헤더 */}
-                <div className="mb-8 flex items-center justify-between">
-                    <div>
-                        {/* ProvGate 로고 - 클릭 시 홈으로 이동 */}
-                        <button
-                            onClick={() => router.push("/")}
-                            className="text-indigo-500 font-bold text-sm mb-1 hover:text-indigo-400 transition-all"
-                        >
-                            ProvGate
-                        </button>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">학습 통계</h1>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                            {user?.email?.split("@")[0]}님의 학습 현황
-                        </p>
-                    </div>
+        <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+            {/* NAV — 다른 리디자인 페이지들과 동일한 패턴 */}
+            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+                <button
+                    onClick={() => router.push("/")}
+                    className="font-bold text-sm tracking-tight"
+                >
+                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
+                </button>
+                <div className="flex items-center gap-4">
                     <button
-                        onClick={() => router.push("/problems")}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-all"
+                        onClick={() => router.push("/learn")}
+                        className="text-xs font-medium rounded px-4 py-2 transition-opacity hover:opacity-90"
+                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
                     >
                         문제 풀러 가기 →
                     </button>
+                    <ThemeToggle />
+                </div>
+            </nav>
+
+            <div className="max-w-3xl mx-auto px-6 py-8">
+                <div className="mb-6">
+                    <h1 className="text-xl font-bold tracking-tight">학습 통계</h1>
+                    <p className="text-xs text-[var(--text-2)] mt-1">{user?.email?.split("@")[0]}님의 학습 현황</p>
                 </div>
 
                 {/* 전체 진행률 */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 mb-6 border border-gray-200 dark:border-gray-700">
+                <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-5 mb-4">
                     <div className="flex items-center justify-between mb-3">
-                        <h2 className="font-bold text-gray-700 dark:text-gray-300">전체 진행률</h2>
-                        <span className="text-2xl font-bold text-indigo-400">{completionRate}%</span>
+                        <h2 className="text-sm font-bold text-[var(--text-2)]">전체 진행률</h2>
+                        <span
+                            className="text-xl font-bold"
+                            style={{ color: "var(--accent)" }}
+                        >
+                            {completionRate}%
+                        </span>
                     </div>
-
-                    {/* 진행률 바 */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3">
+                    <div className="w-full h-2 rounded-full bg-[var(--border-c)] mb-3">
                         <div
-                            className="bg-indigo-500 h-3 rounded-full transition-all duration-500"
-                            style={{ width: `${completionRate}%` }}
+                            className="h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${completionRate}%`, background: "var(--accent)" }}
                         />
                     </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-[var(--text-3)]">
                         전체 {totalProblems}문제 중 {stats.total_completed}문제 완료
                     </p>
                 </div>
 
                 {/* 난이도별 완료 현황 */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-3 gap-3 mb-4">
                     {[
                         { key: "beginner", count: stats.beginner_completed, total: stats.beginner_total },
                         { key: "intermediate", count: stats.intermediate_completed, total: stats.intermediate_total },
@@ -223,80 +211,107 @@ export default function StatsPage() {
                     ].map(({ key, count, total }) => (
                         <div
                             key={key}
-                            className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 text-center"
+                            className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center"
                         >
-                            <p className={`text-sm font-medium mb-2 ${levelColor[key]}`}>{levelLabel[key]}</p>
-                            <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                                {count}
-                                <span className="text-lg text-gray-400">/{total}</span>
+                            <p
+                                className="text-xs font-medium mb-2"
+                                style={{ color: levelColorVar[key] }}
+                            >
+                                {levelLabel[key]}
                             </p>
-                            {/* 난이도별 진행률 바 */}
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-3">
+                            <p className="text-2xl font-bold tracking-tight mb-1">
+                                {count}
+                                <span className="text-sm font-medium text-[var(--text-3)]">/{total}</span>
+                            </p>
+                            <div className="w-full h-1 rounded-full bg-[var(--border-c)] mt-2">
                                 <div
-                                    className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
-                                    style={{ width: `${total > 0 ? Math.round((count / total) * 100) : 0}%` }}
+                                    className="h-1 rounded-full transition-all duration-500"
+                                    style={{
+                                        width: `${total > 0 ? Math.round((count / total) * 100) : 0}%`,
+                                        background: levelColorVar[key],
+                                    }}
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* 요약 통계 */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                    {/* 평균 풀이 시간 */}
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 text-center">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">평균 풀이 시간</p>
-                        <p className="text-2xl font-bold text-blue-400 font-mono">{formatTime(stats.avg_time_sec)}</p>
+                {/* 요약 통계 3종 */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center">
+                        <p className="text-[10px] text-[var(--text-3)] mb-1.5">평균 풀이 시간</p>
+                        <p
+                            className="text-lg font-bold font-mono"
+                            style={{ color: "var(--accent3)" }}
+                        >
+                            {formatTime(stats.avg_time_sec)}
+                        </p>
                     </div>
-
-                    {/* 총 힌트 사용 */}
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 text-center">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">총 힌트 사용</p>
-                        <p className="text-2xl font-bold text-yellow-400">{stats.total_hints}회</p>
+                    <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center">
+                        <p className="text-[10px] text-[var(--text-3)] mb-1.5">총 힌트 사용</p>
+                        <p
+                            className="text-lg font-bold"
+                            style={{ color: "var(--accent2)" }}
+                        >
+                            {stats.total_hints}회
+                        </p>
                     </div>
-
-                    {/* 총 게이트 시도 */}
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 text-center">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">총 게이트 시도</p>
-                        <p className="text-2xl font-bold text-purple-400">{stats.total_gate_attempts}회</p>
+                    <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center">
+                        <p className="text-[10px] text-[var(--text-3)] mb-1.5">총 게이트 시도</p>
+                        <p
+                            className="text-lg font-bold"
+                            style={{ color: "var(--accent)" }}
+                        >
+                            {stats.total_gate_attempts}회
+                        </p>
                     </div>
                 </div>
 
                 {/* 최근 풀이 히스토리 */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
-                    <h2 className="font-bold text-gray-700 dark:text-gray-300 mb-4">최근 풀이 히스토리</h2>
+                <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-5">
+                    <h2 className="text-sm font-bold text-[var(--text-2)] mb-3">최근 풀이 히스토리</h2>
 
                     {stats.recent_submissions.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">아직 풀이 기록이 없습니다.</p>
+                        <p className="text-xs text-[var(--text-3)] text-center py-6">아직 풀이 기록이 없습니다.</p>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="flex flex-col gap-1.5">
                             {stats.recent_submissions.map((sub, idx) => (
-                                // 신규: 카드 클릭 시 해당 문제 페이지로 이동
-                                // sub.problem_id는 백엔드 stats.py에서 p.id AS problem_id로 받아온 값
-                                // cursor-pointer + hover 효과로 클릭 가능한 카드임을 시각적으로 표시
+                                // key로 idx를 쓴 이유: 백엔드가 submission의 고유 id를 안 내려주고 있어서
+                                // 배열 인덱스로 대체함. 리스트 순서가 바뀌지 않는 "최근 기록" 특성상
+                                // 인덱스를 key로 써도 실질적인 문제는 없음 (다만 원칙적으론 고유 id가 더 안전)
                                 <div
                                     key={idx}
                                     onClick={() => router.push(`/problems/${sub.problem_id}`)}
-                                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl
-                                        cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-all"
+                                    className="flex items-center justify-between p-3 rounded-md cursor-pointer
+                                        hover:bg-[var(--bg-3)] transition-colors"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        {/* 완료 여부 아이콘 */}
-                                        <span>{sub.gate_passed ? "✅" : "⏳"}</span>
+                                    <div className="flex items-center gap-2.5">
+                                        {/* 완료 여부에 따라 아이콘 색만 다르게 (완료=그린, 진행중=중립) */}
+                                        <i
+                                            className={`ti ${sub.gate_passed ? "ti-check" : "ti-clock"}`}
+                                            style={{
+                                                color: sub.gate_passed ? "var(--accent)" : "var(--text-3)",
+                                                fontSize: "14px",
+                                            }}
+                                            aria-hidden="true"
+                                        />
                                         <div>
-                                            <p className="font-medium text-sm text-gray-900 dark:text-white">
-                                                {displayTitle(sub.title)}
-                                            </p>
-                                            <p className={`text-xs ${levelColor[sub.level]}`}>
+                                            <p className="text-xs font-medium">{displayTitle(sub.title)}</p>
+                                            <p
+                                                className="text-[10px] mt-0.5"
+                                                style={{ color: levelColorVar[sub.level] }}
+                                            >
                                                 {levelLabel[sub.level]} · {sub.concept_tag}
                                             </p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        <p className="text-[10px] text-[var(--text-2)]">
                                             {formatTime(sub.time_spent_sec)}
                                         </p>
-                                        <p className="text-xs text-gray-400">{formatDate(sub.submitted_at)}</p>
+                                        <p className="text-[10px] text-[var(--text-3)]">
+                                            {formatDate(sub.submitted_at)}
+                                        </p>
                                     </div>
                                 </div>
                             ))}

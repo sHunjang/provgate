@@ -1,53 +1,44 @@
 "use client";
 
-// useState: 이메일, 패스워드, 에러, 로딩 상태 관리
 import { useState } from "react";
-
-// useRouter: 회원가입 완료 후 페이지 이동
 import { useRouter } from "next/navigation";
-
-// createClient: Supabase 클라이언트 생성 함수
 import { createClient } from "@/app/lib/supabase";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 export default function SignupPage() {
     const router = useRouter();
     const supabase = createClient();
 
-    // 이메일 입력값 상태
     const [email, setEmail] = useState("");
-
-    // 패스워드 입력값 상태
     const [password, setPassword] = useState("");
-
-    // 에러 메세지 상태
     const [error, setError] = useState<string | null>(null);
-
-    // 로딩 상태
     const [loading, setLoading] = useState(false);
 
-    // 회원가입 완료 상태
-    // true: 이메일 인증 안내 화면 표시
-    // false: 회원가입 폼 표시
+    // ============================================================
+    // 회원가입 완료 여부를 나타내는 상태
+    // ============================================================
+    // false: 회원가입 입력 폼을 보여줌
+    // true : "이메일을 확인해주세요" 안내 화면으로 전환
+    // 별도 페이지 이동(router.push) 대신 같은 페이지 안에서
+    // 상태값만 바꿔서 화면을 전환하는 이유:
+    //   회원가입 직후엔 아직 로그인된 게 아니라서(이메일 인증 전)
+    //   보호된 페이지로 보내면 오히려 막힐 수 있음.
+    //   그냥 이 페이지 안에서 "다음에 뭘 해야 하는지"를 바로 안내하는 게 흐름이 매끄러움
     const [isSignedUp, setIsSignedUp] = useState(false);
 
-    // 회원가입 처리 함수
     const handleSignup = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // Supabase Auth로 회원가입
-            // Supabase가 자동으로 인증 메일 발송
-            const { error } = await supabase.auth.signUp({
-                email,
-                password,
-            });
+            // Supabase Auth 회원가입 API
+            // 성공하면 Supabase가 자동으로 인증 메일을 해당 이메일로 발송함
+            // (SMTP 설정은 Supabase 프로젝트 대시보드에서 이미 구성돼 있어야 동작)
+            const { error } = await supabase.auth.signUp({ email, password });
 
             if (error) throw error;
 
-            // 회원가입 성공 시 이메일 인증 안내 화면으로 전환
-            // router.push("/") 대신 isSignedUp을 true로 변경
-            // 유저가 인증 메일 확인 후 로그인할 수 있도록 안내
+            // 회원가입 성공 -> 인증 안내 화면으로 전환
             setIsSignedUp(true);
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -58,125 +49,175 @@ export default function SignupPage() {
         }
     };
 
-    // 회원가입 완료 시 이메일 인증 안내 화면
-    // isSignedUp이 true일 때만 렌더링
+    // ============================================================
+    // 공통 NAV를 함수로 뽑아낸 이유
+    // ============================================================
+    // 이 컴포넌트는 아래에서 "폼 화면"과 "안내 화면" 두 가지 JSX를
+    // 조건부로 return 하는데, 두 화면 모두 똑같은 nav가 필요함.
+    // 코드를 두 번 복붙하는 대신 작은 함수로 빼서 재사용
+    // (컴포넌트 안에 컴포넌트를 정의하는 패턴 — 파일을 분리할 정도로
+    //  크지 않은, 이 파일 안에서만 쓰이는 조각일 때 흔히 사용)
+    const Nav = () => (
+        <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+            <button
+                onClick={() => router.push("/")}
+                className="font-bold text-sm tracking-tight"
+            >
+                Prov<span style={{ color: "var(--accent)" }}>Gate</span>
+            </button>
+            <ThemeToggle />
+        </nav>
+    );
+
+    // ------------------------------------------------------------
+    // 회원가입 완료 → 이메일 인증 안내 화면
+    // 이 if문 때문에 컴포넌트 함수 전체가 여기서 return되고 종료됨
+    // (아래에 있는 두 번째 return은 isSignedUp이 false일 때만 실행됨)
+    // ------------------------------------------------------------
     if (isSignedUp) {
         return (
-            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
-                <div className="w-full max-w-md">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm text-center">
-                        {/* 이메일 아이콘 */}
-                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span className="text-3xl">📧</span>
-                        </div>
+            <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+                <Nav />
+                <div className="flex flex-col items-center justify-center px-6 py-16">
+                    <div className="w-full max-w-sm">
+                        <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-7 text-center">
+                            {/* 원형 아이콘 배경 - accent-bg를 재사용해서
+                                새로 색을 정의하지 않고 기존 팔레트 안에서 통일감 유지 */}
+                            <div
+                                className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                                style={{ background: "var(--accent-bg)" }}
+                            >
+                                {/* Tabler 아이콘 라이브러리의 메일 아이콘
+                                    이모지(📧) 대신 아이콘 폰트를 쓰면 OS/브라우저마다
+                                    다르게 렌더링되는 이모지 특유의 비일관성을 피할 수 있음 */}
+                                <i
+                                    className="ti ti-mail"
+                                    style={{ color: "var(--accent)", fontSize: "22px" }}
+                                    aria-hidden="true"
+                                />
+                            </div>
 
-                        {/* 안내 텍스트 */}
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">이메일을 확인해주세요!</h2>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">
-                            {/* 회원가입 시 입력한 이메일 표시 */}
-                            <span className="text-indigo-500 font-medium">{email}</span> 로
-                        </p>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                            인증 메일을 발송했습니다.
-                            <br />
-                            메일함을 확인 후 인증 링크를 클릭하면
-                            <br />
-                            로그인이 가능합니다.
-                        </p>
-
-                        {/* 스팸 안내
-                            인증 메일이 스팸함으로 분류될 수 있어서 안내 */}
-                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-6">
-                            <p className="text-yellow-700 dark:text-yellow-400 text-xs">
-                                📌 메일이 보이지 않으면 스팸함을 확인해주세요.
+                            <h2 className="text-base font-bold tracking-tight mb-2">이메일을 확인해주세요!</h2>
+                            <p className="text-xs text-[var(--text-2)] mb-1.5">
+                                {/* 방금 회원가입 폼에서 입력했던 email 상태값을 그대로 보여줌
+                                    -> "내가 어떤 주소로 가입했는지" 다시 확인시켜주는 용도 */}
+                                <span
+                                    className="font-medium"
+                                    style={{ color: "var(--accent)" }}
+                                >
+                                    {email}
+                                </span>{" "}
+                                로
                             </p>
-                        </div>
+                            <p className="text-xs text-[var(--text-2)] leading-relaxed mb-5">
+                                인증 메일을 발송했습니다.
+                                <br />
+                                메일함을 확인 후 인증 링크를 클릭하면
+                                <br />
+                                로그인이 가능합니다.
+                            </p>
 
-                        {/* 로그인 페이지로 이동 버튼
-                            인증 완료 후 로그인하러 이동 */}
-                        <button
-                            onClick={() => router.push("/auth/login")}
-                            className="w-full py-3 rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
-                        >
-                            로그인 하러 가기
-                        </button>
+                            {/* 스팸함 안내 - accent2(브라운/골드 계열)를 "주의" 용도로 재사용 */}
+                            <div
+                                className="rounded-md p-2.5 mb-5"
+                                style={{ background: "var(--accent2-bg)" }}
+                            >
+                                <p
+                                    className="text-[11px]"
+                                    style={{ color: "var(--accent2)" }}
+                                >
+                                    메일이 보이지 않으면 스팸함을 확인해주세요.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => router.push("/auth/login")}
+                                className="w-full py-2.5 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
+                                style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
+                            >
+                                로그인 하러 가기
+                            </button>
+                        </div>
                     </div>
                 </div>
             </main>
         );
     }
 
+    // ------------------------------------------------------------
+    // 기본 화면: 회원가입 입력 폼
+    // (isSignedUp이 false일 때, 즉 아직 제출 전이거나 컴포넌트가
+    //  처음 마운트됐을 때 이 아래 코드가 실행됨)
+    // ------------------------------------------------------------
     return (
-        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
-            <div className="w-full max-w-md">
-                {/* 헤더 */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Provgate</h1>
-                    <p className="text-gray-500 dark:text-gray-400">AI와 함께, 이해는 스스로</p>
-                </div>
+        <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+            <Nav />
+            <div className="flex flex-col items-center justify-center px-6 py-16">
+                <div className="w-full max-w-sm">
+                    <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-7">
+                        <h2 className="text-base font-bold tracking-tight mb-6">회원가입</h2>
 
-                {/* 회원가입 카드 */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">회원가입</h2>
-
-                    {/* 이메일 입력 */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            이메일
-                        </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="example@email.com"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                        />
-                    </div>
-
-                    {/* 패스워드 입력 */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            비밀번호
-                        </label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="6자 이상 입력하세요"
-                            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                        />
-                    </div>
-
-                    {/* 에러 메시지 */}
-                    {error && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
-                            {error}
+                        <div className="mb-4">
+                            <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">이메일</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="example@email.com"
+                                className="w-full px-3.5 py-2.5 rounded-md border border-[var(--border-strong)]
+                                    bg-[var(--bg)] text-[var(--text)] text-sm
+                                    placeholder:text-[var(--text-3)]
+                                    focus:outline-none focus:border-[var(--accent)] transition-colors"
+                            />
                         </div>
-                    )}
 
-                    {/* 회원가입 버튼 */}
-                    <button
-                        onClick={handleSignup}
-                        disabled={loading || !email || !password}
-                        className={`w-full py-3 rounded-xl font-semibold transition-all ${
-                            loading || !email || !password
-                                ? "bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed"
-                                : "bg-indigo-600 text-white hover:bg-indigo-700"
-                        }`}
-                    >
-                        {loading ? "처리 중..." : "회원가입"}
-                    </button>
+                        <div className="mb-5">
+                            <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">비밀번호</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="6자 이상 입력하세요"
+                                className="w-full px-3.5 py-2.5 rounded-md border border-[var(--border-strong)]
+                                    bg-[var(--bg)] text-[var(--text)] text-sm
+                                    placeholder:text-[var(--text-3)]
+                                    focus:outline-none focus:border-[var(--accent)] transition-colors"
+                            />
+                        </div>
 
-                    {/* 로그인 링크 */}
-                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                        이미 계정이 있으신가요?{" "}
+                        {error && (
+                            <div
+                                className="mb-4 p-2.5 rounded-md text-xs"
+                                style={{ background: "var(--accent2-bg)", color: "var(--accent2)" }}
+                            >
+                                {error}
+                            </div>
+                        )}
+
                         <button
-                            onClick={() => router.push("/auth/login")}
-                            className="text-indigo-600 hover:underline font-medium"
+                            onClick={handleSignup}
+                            disabled={loading || !email || !password}
+                            className="w-full py-2.5 rounded-md text-sm font-medium transition-opacity"
+                            style={
+                                loading || !email || !password
+                                    ? { background: "var(--bg-3)", color: "var(--text-3)", cursor: "not-allowed" }
+                                    : { background: "var(--btn-bg)", color: "var(--btn-text)" }
+                            }
                         >
-                            로그인
+                            {loading ? "처리 중..." : "회원가입"}
                         </button>
-                    </p>
+
+                        <p className="text-center text-xs text-[var(--text-3)] mt-4">
+                            이미 계정이 있으신가요?{" "}
+                            <button
+                                onClick={() => router.push("/auth/login")}
+                                className="font-medium underline underline-offset-2"
+                                style={{ color: "var(--accent)" }}
+                            >
+                                로그인
+                            </button>
+                        </p>
+                    </div>
                 </div>
             </div>
         </main>

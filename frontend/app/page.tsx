@@ -6,7 +6,7 @@
 // Suspense: 컴포넌트가 아직 준비 안 됐을 때 "로딩 중" 화면을 보여주는
 //   React 내장 컴포넌트. useSearchParams()가 값을 확정하기 전까지
 //   fallback UI를 보여주는 안전장치로 사용함.
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 // useRouter: 페이지 이동(라우팅)을 코드로 실행할 때 사용
 // useSearchParams: 현재 URL의 ?key=value 쿼리 파라미터를 읽는 훅
@@ -17,6 +17,8 @@ import { useAuth } from "./hooks/useAuth";
 
 // Supabase 클라이언트 생성 함수 - DB/인증 서버와 통신하는 창구
 import { createClient } from "./lib/supabase";
+
+import ThemeToggle from "./components/ThemeToggle";
 
 // ============================================================
 // HomeContent — 실제 로직이 들어있는 컴포넌트
@@ -31,6 +33,14 @@ function HomeContent() {
     // /problems(구 경로)에서 진단 안 한 사용자를 리디렉션할 때 붙는 쿼리
     // .get()은 값이 없으면 null 반환 → 조건부 렌더링에 활용
     const needOnboarding = searchParams.get("needOnboarding");
+
+    // ============================================================
+    // 모바일 햄버거 메뉴 열림/닫힘 상태
+    // ============================================================
+    // 데스크탑에서는 항상 링크가 보이지만, 모바일 화면 폭에서는
+    // "문제/통계/로그인/테마토글"을 한 줄에 다 넣을 공간이 없어서
+    // 햄버거 아이콘 뒤에 숨겨뒀다가 탭하면 펼쳐지는 방식으로 전환
+    const [menuOpen, setMenuOpen] = useState(false);
 
     // ------------------------------------------------------------
     // 이벤트 핸들러
@@ -67,6 +77,14 @@ function HomeContent() {
         }
 
         router.push("/problems");
+    };
+
+    // "로그아웃" 버튼 클릭 시 실행 — Supabase 세션 종료 후 홈으로 이동
+    const handleLogout = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        setMenuOpen(false);
+        router.push("/");
     };
 
     // ============================================================
@@ -111,11 +129,15 @@ function HomeContent() {
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
             {/* NAV */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+            {/* relative 추가: 모바일 드롭다운(absolute)의 기준점이 되기 위함
+    absolute 요소는 가장 가까운 relative 조상을 기준으로 위치가 잡힘 */}
+            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6 relative">
                 <div className="font-bold text-sm tracking-tight">
                     Prov<span style={{ color: "var(--accent)" }}>Gate</span>
                 </div>
-                <div className="flex items-center gap-5">
+
+                {/* 데스크탑 전용 링크 그룹 — md 미만에서는 hidden으로 완전히 렌더링 제외 */}
+                <div className="hidden md:flex items-center gap-5">
                     <button
                         onClick={() => router.push("/learn")}
                         className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
@@ -140,10 +162,75 @@ function HomeContent() {
                             로그인
                         </button>
                     )}
+                    <ThemeToggle />
                 </div>
+
+                {/* 모바일 전용 그룹 — 테마 토글은 항상 보이게, 햄버거는 그 오른쪽에 */}
+                <div className="md:hidden flex items-center gap-2">
+                    <ThemeToggle />
+                    <button
+                        onClick={() => setMenuOpen(!menuOpen)}
+                        className="p-1.5 text-[var(--text-2)]"
+                        aria-label="메뉴 열기"
+                    >
+                        <i
+                            className={`ti ${menuOpen ? "ti-x" : "ti-menu-2"}`}
+                            style={{ fontSize: "18px" }}
+                            aria-hidden="true"
+                        />
+                    </button>
+                </div>
+
+                {/* 모바일 드롭다운 시트 — ThemeToggle 제거(이제 바깥에 항상 있음), 로그아웃 버튼 추가 */}
+                {menuOpen && (
+                    <div className="md:hidden absolute top-14 left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
+                        <button
+                            onClick={() => {
+                                router.push("/learn");
+                                setMenuOpen(false);
+                            }}
+                            className="text-sm text-left text-[var(--text-2)] py-1.5"
+                        >
+                            문제
+                        </button>
+                        <button
+                            onClick={() => {
+                                router.push("/stats");
+                                setMenuOpen(false);
+                            }}
+                            className="text-sm text-left text-[var(--text-2)] py-1.5"
+                        >
+                            통계
+                        </button>
+                        {user ? (
+                            // 로그인 상태: 이메일 표시 + 로그아웃 버튼 둘 다 노출
+                            <>
+                                <span className="text-sm text-[var(--text-2)] py-1.5">{user.email?.split("@")[0]}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-sm text-left py-1.5"
+                                    style={{ color: "var(--accent2)" }}
+                                >
+                                    로그아웃
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    router.push("/auth/login");
+                                    setMenuOpen(false);
+                                }}
+                                className="text-sm text-left text-[var(--text-2)] py-1.5"
+                            >
+                                로그인
+                            </button>
+                        )}
+                    </div>
+                )}
             </nav>
 
-            {/* 온보딩 안내 배너 — needOnboarding 쿼리가 있을 때만 표시 */}
+            {/* 온보딩 안내 배너 — needOnboarding 쿼리가 있을 때만 표시
+                (이건 원래 폭 제한 없이 배너 형태로 화면 전체를 쓰는 게 맞아서 그대로 둠) */}
             {needOnboarding && (
                 <div className="px-6 py-3 bg-[var(--accent2-bg)] border-b border-[var(--border-c)] text-center">
                     <p
@@ -155,249 +242,262 @@ function HomeContent() {
                 </div>
             )}
 
-            {/* S1. 히어로 */}
-            <section className="px-6 py-14 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8 md:py-20">
-                <p className="text-[10px] tracking-widest uppercase text-[var(--text-3)] mb-4">AI 시대 코딩 학습</p>
-                <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
-                    AI와 함께,
-                    <br />
-                    <span style={{ color: "var(--accent)" }}>이해는 스스로</span>
-                </h1>
-                <p className="text-sm text-[var(--text-2)] leading-relaxed mb-7">
-                    복붙이 아니라 진짜로 이해하는 힘.
-                    <br />
-                    설계하고, 검증하고, 성장합니다.
-                </p>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={handleDiagnoseStart}
-                        className="text-sm font-medium rounded px-6 py-3 transition-opacity hover:opacity-90"
-                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
-                    >
-                        진단 시작하기
-                    </button>
-                    <button
-                        onClick={handleGuestLogin}
-                        className="text-sm text-[var(--text-3)] underline underline-offset-4 hover:text-[var(--text-2)]"
-                    >
-                        게스트로 체험
-                    </button>
+            {/* ============================================================
+                S1. 히어로
+                수정: 배경 없는 섹션이라 바깥 <section>엔 border-b만,
+                     안쪽 <div>에 max-w-3xl mx-auto px-6 py-* 이동
+                ============================================================ */}
+            <section className="border-b border-[var(--border-c)]">
+                <div className="max-w-3xl mx-auto px-6 py-14 md:px-8 md:py-20">
+                    <p className="text-[10px] tracking-widest uppercase text-[var(--text-3)] mb-4">AI 시대 코딩 학습</p>
+                    <h1 className="text-2xl md:text-4xl font-bold tracking-tight leading-tight mb-4">
+                        AI와 함께,
+                        <br />
+                        <span style={{ color: "var(--accent)" }}>이해는 스스로</span>
+                    </h1>
+                    <p className="text-sm text-[var(--text-2)] leading-relaxed mb-7">
+                        복붙이 아니라 진짜로 이해하는 힘.
+                        <br />
+                        설계하고, 검증하고, 성장합니다.
+                    </p>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleDiagnoseStart}
+                            className="text-sm font-medium rounded px-6 py-3 transition-opacity hover:opacity-90"
+                            style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
+                        >
+                            진단 시작하기
+                        </button>
+                        <button
+                            onClick={handleGuestLogin}
+                            className="text-sm text-[var(--text-3)] underline underline-offset-4 hover:text-[var(--text-2)]"
+                        >
+                            게스트로 체험
+                        </button>
+                    </div>
                 </div>
             </section>
 
-            {/* S2. 실태 (통계) */}
-            <section className="px-6 py-10 border-b border-[var(--border-c)] bg-[var(--bg-3)] max-w-3xl mx-auto md:px-8">
-                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-3">실태</p>
-                <h2 className="text-base font-bold tracking-tight mb-5">개발자들은 AI를 어떻게 느끼고 있을까요?</h2>
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[
-                        { num: "80", label: "개발자가 AI 도구를 이미 사용 중" },
-                        { num: "46", label: "코드 중 AI가 생성하는 비율" },
-                        { num: "66", label: "AI 코드 디버깅에 더 많은 시간 소요" },
-                    ].map((s) => (
-                        <div
-                            key={s.label}
-                            className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-3"
-                        >
-                            <div className="text-xl font-bold tracking-tight mb-1">
-                                {s.num}
-                                <span className="text-xs font-medium">%</span>
+            {/* ============================================================
+                S2. 실태 (통계)
+                수정: bg-[var(--bg-3)]를 바깥 <section>으로 옮겨서
+                     배경색이 화면 전체 폭으로 자연스럽게 펼쳐지게 함
+                ============================================================ */}
+            <section className="border-b border-[var(--border-c)] bg-[var(--bg-3)]">
+                <div className="max-w-3xl mx-auto px-6 py-10 md:px-8">
+                    <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-3">실태</p>
+                    <h2 className="text-base font-bold tracking-tight mb-5">개발자들은 AI를 어떻게 느끼고 있을까요?</h2>
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                        {[
+                            { num: "80", label: "개발자가 AI 도구를 이미 사용 중" },
+                            { num: "46", label: "코드 중 AI가 생성하는 비율" },
+                            { num: "66", label: "AI 코드 디버깅에 더 많은 시간 소요" },
+                        ].map((s) => (
+                            <div
+                                key={s.label}
+                                className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-3"
+                            >
+                                <div className="text-xl font-bold tracking-tight mb-1">
+                                    {s.num}
+                                    <span className="text-xs font-medium">%</span>
+                                </div>
+                                <div className="text-[10px] text-[var(--text-2)] leading-snug">{s.label}</div>
                             </div>
-                            <div className="text-[10px] text-[var(--text-2)] leading-snug">{s.label}</div>
+                        ))}
+                    </div>
+                    {[
+                        { label: "AI 코드를 완전히 이해하고 싶다", pct: 61 },
+                        { label: "AI 답변을 신뢰할 수 없을 때 사람에게 묻는다", pct: 75 },
+                    ].map((bar) => (
+                        <div
+                            key={bar.label}
+                            className="mb-2"
+                        >
+                            <div className="flex justify-between mb-1">
+                                <span className="text-[11px] text-[var(--text-2)]">{bar.label}</span>
+                                <span className="text-[11px] font-bold">{bar.pct}%</span>
+                            </div>
+                            <div className="h-[3px] rounded-full bg-[var(--border-c)]">
+                                <div
+                                    className="h-[3px] rounded-full"
+                                    style={{ width: `${bar.pct}%`, background: "var(--accent)" }}
+                                />
+                            </div>
                         </div>
                     ))}
+                    <p className="text-[9px] text-[var(--text-3)] mt-3">
+                        출처: Stack Overflow Developer Survey 2025 (응답자 90,000명+) · GitHub Copilot Research 2025
+                    </p>
                 </div>
-                {[
-                    { label: "AI 코드를 완전히 이해하고 싶다", pct: 61 },
-                    { label: "AI 답변을 신뢰할 수 없을 때 사람에게 묻는다", pct: 75 },
-                ].map((bar) => (
-                    <div
-                        key={bar.label}
-                        className="mb-2"
-                    >
-                        <div className="flex justify-between mb-1">
-                            <span className="text-[11px] text-[var(--text-2)]">{bar.label}</span>
-                            <span className="text-[11px] font-bold">{bar.pct}%</span>
-                        </div>
-                        <div className="h-[3px] rounded-full bg-[var(--border-c)]">
-                            <div
-                                className="h-[3px] rounded-full"
-                                style={{ width: `${bar.pct}%`, background: "var(--accent)" }}
-                            />
-                        </div>
-                    </div>
-                ))}
-                <p className="text-[9px] text-[var(--text-3)] mt-3">
-                    출처: Stack Overflow Developer Survey 2025 (응답자 90,000명+) · GitHub Copilot Research 2025
-                </p>
             </section>
 
             {/* S3. 작동 방식 */}
-            <section className="px-6 py-10 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8">
-                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">작동 방식</p>
-                <h2 className="text-base font-bold tracking-tight mb-5">3단계로 진짜 이해를 검증합니다</h2>
-                <div className="flex flex-col">
-                    {[
-                        {
-                            num: "01",
-                            title: "직접 설계하기",
-                            desc: "코드 짜기 전에 조건과 순서를 글로 먼저 써요. AI 없이 내 머릿속을 정리하는 첫 단계.",
-                            tag: "설계 훈련",
-                            bg: "var(--accent-bg)",
-                            fg: "var(--accent)",
-                        },
-                        {
-                            num: "02",
-                            title: "AI 힌트로 점검",
-                            desc: "막히면 AI가 방향만 알려줘요. 답을 주는 게 아니라 생각의 빈틈을 짚어줍니다.",
-                            tag: "AI 힌트",
-                            bg: "var(--accent2-bg)",
-                            fg: "var(--accent2)",
-                        },
-                        {
-                            num: "03",
-                            title: "이해 확인 게이트",
-                            desc: "같은 개념의 다른 문제로 진짜 이해했는지 검증. 통과해야만 제출 완료.",
-                            tag: "이해 검증",
-                            bg: "var(--accent3-bg)",
-                            fg: "var(--accent3)",
-                        },
-                    ].map((step, i, arr) => (
-                        <div
-                            key={step.num}
-                            className={`flex gap-4 py-3 ${i !== arr.length - 1 ? "border-b border-[var(--border-c)]" : ""}`}
-                        >
+            <section className="border-b border-[var(--border-c)]">
+                <div className="max-w-3xl mx-auto px-6 py-10 md:px-8">
+                    <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">작동 방식</p>
+                    <h2 className="text-base font-bold tracking-tight mb-5">3단계로 진짜 이해를 검증합니다</h2>
+                    <div className="flex flex-col">
+                        {[
+                            {
+                                num: "01",
+                                title: "직접 설계하기",
+                                desc: "코드 짜기 전에 조건과 순서를 글로 먼저 써요. AI 없이 내 머릿속을 정리하는 첫 단계.",
+                                tag: "설계 훈련",
+                                bg: "var(--accent-bg)",
+                                fg: "var(--accent)",
+                            },
+                            {
+                                num: "02",
+                                title: "AI 힌트로 점검",
+                                desc: "막히면 AI가 방향만 알려줘요. 답을 주는 게 아니라 생각의 빈틈을 짚어줍니다.",
+                                tag: "AI 힌트",
+                                bg: "var(--accent2-bg)",
+                                fg: "var(--accent2)",
+                            },
+                            {
+                                num: "03",
+                                title: "이해 확인 게이트",
+                                desc: "같은 개념의 다른 문제로 진짜 이해했는지 검증. 통과해야만 제출 완료.",
+                                tag: "이해 검증",
+                                bg: "var(--accent3-bg)",
+                                fg: "var(--accent3)",
+                            },
+                        ].map((step, i, arr) => (
                             <div
-                                className="text-xs font-bold min-w-[24px]"
-                                style={{ color: "var(--accent)" }}
+                                key={step.num}
+                                className={`flex gap-4 py-3 ${i !== arr.length - 1 ? "border-b border-[var(--border-c)]" : ""}`}
                             >
-                                {step.num}
-                            </div>
-                            <div>
-                                <div className="text-sm font-bold mb-1">{step.title}</div>
-                                <div className="text-xs text-[var(--text-2)] leading-relaxed">{step.desc}</div>
-                                <span
-                                    className="inline-block text-[9px] rounded px-2 py-0.5 mt-1.5"
-                                    style={{ background: step.bg, color: step.fg }}
+                                <div
+                                    className="text-xs font-bold min-w-[24px]"
+                                    style={{ color: "var(--accent)" }}
                                 >
-                                    {step.tag}
-                                </span>
+                                    {step.num}
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold mb-1">{step.title}</div>
+                                    <div className="text-xs text-[var(--text-2)] leading-relaxed">{step.desc}</div>
+                                    <span
+                                        className="inline-block text-[9px] rounded px-2 py-0.5 mt-1.5"
+                                        style={{ background: step.bg, color: step.fg }}
+                                    >
+                                        {step.tag}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </section>
 
-            {/* ============================================
+            {/* ============================================================
                 S4. 학습 트랙 섹션
-                버그 수정: 각 카드가 슬러그 기반으로 /learn?track=... 이동
-                UX 개선: 아이콘 원형 배경 + hover 시 화살표 이동으로
-                        "클릭 가능한 카드"라는 신호를 명확히 줌
-                ============================================ */}
-            <section className="px-6 py-10 border-b border-[var(--border-c)] bg-[var(--bg-3)] max-w-3xl mx-auto md:px-8">
-                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">학습 트랙</p>
-                <h2 className="text-base font-bold tracking-tight mb-4">내 목적에 맞는 트랙을 골라요</h2>
-                <div className="flex flex-col gap-2">
-                    {tracks.map((t) => (
-                        <button
-                            key={t.slug}
-                            // 핵심 수정: t.slug를 쿼리 파라미터로 넘겨서
-                            // /learn 페이지가 어떤 트랙을 초기 선택할지 알 수 있게 함
-                            onClick={() => router.push(`/learn?track=${t.slug}`)}
-                            className="group bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md px-4 py-3.5
-                                flex items-center justify-between text-left
-                                hover:border-[var(--border-strong)] hover:shadow-sm transition-all"
-                        >
-                            <div className="flex items-center gap-3">
-                                {/* 트랙 색상의 옅은 배경 원 + 아이콘 — 시각적 진입점 강화 */}
-                                <div
-                                    className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: t.bg }}
-                                >
+                ============================================================ */}
+            <section className="border-b border-[var(--border-c)] bg-[var(--bg-3)]">
+                <div className="max-w-3xl mx-auto px-6 py-10 md:px-8">
+                    <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">학습 트랙</p>
+                    <h2 className="text-base font-bold tracking-tight mb-4">내 목적에 맞는 트랙을 골라요</h2>
+                    <div className="flex flex-col gap-2">
+                        {tracks.map((t) => (
+                            <button
+                                key={t.slug}
+                                onClick={() => router.push(`/learn?track=${t.slug}`)}
+                                className="group bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md px-4 py-3.5
+                                    flex items-center justify-between text-left
+                                    hover:border-[var(--border-strong)] hover:shadow-sm transition-all"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{ background: t.bg }}
+                                    >
+                                        <i
+                                            className={`ti ${t.icon}`}
+                                            style={{ color: t.dot, fontSize: "16px" }}
+                                            aria-hidden="true"
+                                        />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-bold mb-0.5">{t.name}</div>
+                                        <div className="text-[10px] text-[var(--text-2)]">{t.desc}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-[var(--text-3)]">{t.count}</span>
                                     <i
-                                        className={`ti ${t.icon}`}
-                                        style={{ color: t.dot, fontSize: "16px" }}
+                                        className="ti ti-chevron-right text-[var(--text-3)] transition-transform group-hover:translate-x-0.5"
+                                        style={{ fontSize: "14px" }}
                                         aria-hidden="true"
                                     />
                                 </div>
-                                <div>
-                                    <div className="text-sm font-bold mb-0.5">{t.name}</div>
-                                    <div className="text-[10px] text-[var(--text-2)]">{t.desc}</div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--text-3)]">{t.count}</span>
-                                {/* group-hover: 부모 버튼에 마우스를 올리면 이 아이콘도 함께 반응
-                                    → 클릭을 유도하는 미세한 움직임(microinteraction) */}
-                                <i
-                                    className="ti ti-chevron-right text-[var(--text-3)] transition-transform group-hover:translate-x-0.5"
-                                    style={{ fontSize: "14px" }}
-                                    aria-hidden="true"
-                                />
-                            </div>
-                        </button>
-                    ))}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </section>
 
             {/* S5. 사회적 증명 */}
-            <section className="px-6 py-10 border-b border-[var(--border-c)] max-w-3xl mx-auto md:px-8">
-                <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">베타 피드백</p>
-                <h2 className="text-base font-bold tracking-tight mb-4">써본 분들의 이야기</h2>
-                <div className="flex flex-col gap-2">
-                    {[
-                        {
-                            text: "막상 설계를 글로 적어보니 어떻게 구현해야 할지 정리되더라고요. ChatGPT랑 달리 내 생각을 먼저 쓰게 하는 게 좋았어요.",
-                            who: "학생 · 베타",
-                        },
-                        {
-                            text: "내 의도를 명확하게 전달하면서 코드 작성 전 생각을 정리할 수 있는 점이 ChatGPT랑 다르게 느껴졌어요.",
-                            who: "주니어 개발자 · 베타",
-                        },
-                    ].map((r) => (
-                        <div
-                            key={r.who}
-                            className="bg-[var(--bg-3)] rounded-md px-4 py-3"
-                        >
-                            <p className="text-xs text-[var(--text-2)] leading-relaxed mb-2">{r.text}</p>
-                            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]">
-                                <div
-                                    className="w-1 h-1 rounded-full"
-                                    style={{ background: "var(--accent)" }}
-                                />
-                                {r.who}
+            <section className="border-b border-[var(--border-c)]">
+                <div className="max-w-3xl mx-auto px-6 py-10 md:px-8">
+                    <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">베타 피드백</p>
+                    <h2 className="text-base font-bold tracking-tight mb-4">써본 분들의 이야기</h2>
+                    <div className="flex flex-col gap-2">
+                        {[
+                            {
+                                text: "막상 설계를 글로 적어보니 어떻게 구현해야 할지 정리되더라고요. ChatGPT랑 달리 내 생각을 먼저 쓰게 하는 게 좋았어요.",
+                                who: "학생 · 베타",
+                            },
+                            {
+                                text: "내 의도를 명확하게 전달하면서 코드 작성 전 생각을 정리할 수 있는 점이 ChatGPT랑 다르게 느껴졌어요.",
+                                who: "주니어 개발자 · 베타",
+                            },
+                        ].map((r) => (
+                            <div
+                                key={r.who}
+                                className="bg-[var(--bg-3)] rounded-md px-4 py-3"
+                            >
+                                <p className="text-xs text-[var(--text-2)] leading-relaxed mb-2">{r.text}</p>
+                                <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]">
+                                    <div
+                                        className="w-1 h-1 rounded-full"
+                                        style={{ background: "var(--accent)" }}
+                                    />
+                                    {r.who}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </section>
 
-            {/* S6. 마지막 CTA */}
-            <section
-                className="px-6 py-16 text-center"
-                style={{ background: "var(--btn-bg)" }}
-            >
-                <h2
-                    className="text-xl font-bold tracking-tight mb-2 max-w-md mx-auto leading-snug"
-                    style={{ color: "var(--btn-text)" }}
-                >
-                    AI 의존에서 벗어나
-                    <br />
-                    진짜 실력을 키울 준비가 됐나요?
-                </h2>
-                <p
-                    className="text-xs mb-5"
-                    style={{ color: "var(--btn-text)", opacity: 0.5 }}
-                >
-                    AI가 제공하는 문제를 통해 나에게 맞는 수준을 알 수 있어요.
-                </p>
-                <button
-                    onClick={handleDiagnoseStart}
-                    className="inline-block text-xs font-medium rounded px-6 py-3"
-                    style={{ background: "var(--btn-text)", color: "var(--btn-bg)" }}
-                >
-                    지금 진단 시작하기 →
-                </button>
+            {/* ============================================================
+                S6. 마지막 CTA
+                수정: 배경(style={{ background: "var(--btn-bg)" }})은 바깥 <section>에,
+                     텍스트 정렬용 max-w-md/text-center는 안쪽 <div>로 이동
+                ============================================================ */}
+            <section style={{ background: "var(--btn-bg)" }}>
+                <div className="max-w-3xl mx-auto px-6 py-16 text-center">
+                    <h2
+                        className="text-xl font-bold tracking-tight mb-2 max-w-md mx-auto leading-snug"
+                        style={{ color: "var(--btn-text)" }}
+                    >
+                        AI 의존에서 벗어나
+                        <br />
+                        진짜 실력을 키울 준비가 됐나요?
+                    </h2>
+                    <p
+                        className="text-xs mb-5"
+                        style={{ color: "var(--btn-text)", opacity: 0.5 }}
+                    >
+                        AI가 제공하는 문제를 통해 나에게 맞는 수준을 알 수 있어요.
+                    </p>
+                    <button
+                        onClick={handleDiagnoseStart}
+                        className="inline-block text-xs font-medium rounded px-6 py-3"
+                        style={{ background: "var(--btn-text)", color: "var(--btn-bg)" }}
+                    >
+                        지금 진단 시작하기 →
+                    </button>
+                </div>
             </section>
         </main>
     );

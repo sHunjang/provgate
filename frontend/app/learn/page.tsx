@@ -4,6 +4,9 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 
+import ThemeToggle from "../components/ThemeToggle";
+import { createClient } from "../lib/supabase";
+
 // ============================================================
 // 타입 정의
 // ============================================================
@@ -53,6 +56,12 @@ function LearnContent() {
     const { user, loading: authLoading } = useAuth();
 
     const [allProblems, setAllProblems] = useState<Problem[]>([]);
+
+    // 모바일 햄버거 메뉴(홈과 동일한 내비게이션) 열림/닫힘
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    // 모바일 트랙 선택 드롭다운(첨부 예시처럼 pill 형태) 열림/닫힘
+    const [trackDropdownOpen, setTrackDropdownOpen] = useState(false);
 
     // ============================================================
     // activeTrack 초기값을 URL의 ?track= 값에서 가져오기
@@ -128,6 +137,14 @@ function LearnContent() {
         initialize();
     }, [user?.email, authLoading, router]);
 
+    // 로그아웃 핸들러
+    const handleLogout = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        setMenuOpen(false);
+        router.push("/");
+    };
+
     // ------------------------------------------------------------
     // 파생 데이터 (derived state)
     // ------------------------------------------------------------
@@ -161,14 +178,16 @@ function LearnContent() {
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
             {/* NAV */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6 relative">
                 <button
                     onClick={() => router.push("/")}
                     className="font-bold text-sm tracking-tight"
                 >
                     Prov<span style={{ color: "var(--accent)" }}>Gate</span>
                 </button>
-                <div className="flex items-center gap-5">
+
+                {/* 데스크탑 전용 우측 그룹 (기존과 동일) */}
+                <div className="hidden md:flex items-center gap-5">
                     <span className="text-xs font-medium">학습</span>
                     <button
                         onClick={() => router.push("/stats")}
@@ -176,37 +195,94 @@ function LearnContent() {
                     >
                         통계
                     </button>
-                    {user && (
+                    {user ? (
                         <span className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5">
                             {user.email?.split("@")[0]}
                         </span>
+                    ) : (
+                        <button
+                            onClick={() => router.push("/auth/login")}
+                            className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5"
+                        >
+                            로그인
+                        </button>
                     )}
+                    <ThemeToggle />
                 </div>
+
+                {/* 모바일 전용 그룹 — 홈과 완전히 동일한 패턴 */}
+                <div className="md:hidden flex items-center gap-2">
+                    <ThemeToggle />
+                    <button
+                        onClick={() => setMenuOpen(!menuOpen)}
+                        className="p-1.5 text-[var(--text-2)]"
+                        aria-label="메뉴 열기"
+                    >
+                        <i
+                            className={`ti ${menuOpen ? "ti-x" : "ti-menu-2"}`}
+                            style={{ fontSize: "18px" }}
+                            aria-hidden="true"
+                        />
+                    </button>
+                </div>
+
+                {menuOpen && (
+                    <div className="md:hidden absolute top-14 left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
+                        <button
+                            onClick={() => {
+                                router.push("/");
+                                setMenuOpen(false);
+                            }}
+                            className="text-sm text-left text-[var(--text-2)] py-1.5"
+                        >
+                            홈
+                        </button>
+                        <button
+                            onClick={() => {
+                                router.push("/stats");
+                                setMenuOpen(false);
+                            }}
+                            className="text-sm text-left text-[var(--text-2)] py-1.5"
+                        >
+                            통계
+                        </button>
+                        {user ? (
+                            <>
+                                <span className="text-sm text-[var(--text-2)] py-1.5">{user.email?.split("@")[0]}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-sm text-left py-1.5"
+                                    style={{ color: "var(--accent2)" }}
+                                >
+                                    로그아웃
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    router.push("/auth/login");
+                                    setMenuOpen(false);
+                                }}
+                                className="text-sm text-left text-[var(--text-2)] py-1.5"
+                            >
+                                로그인
+                            </button>
+                        )}
+                    </div>
+                )}
             </nav>
 
-            {/* 사이드바 + 본문 2단 레이아웃 */}
-            <div className="grid grid-cols-[160px_1fr] min-h-[calc(100vh-56px)]">
-                {/* ============================================
-                    사이드바
-                    ============================================ */}
-                <aside className="bg-[var(--bg-3)] border-r border-[var(--border-c)] py-5">
+            {/* 사이드바 + 본문 레이아웃 (수정 없음, 기존 그대로) */}
+            <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] min-h-[calc(100vh-56px)]">
+                <aside className="hidden md:block bg-[var(--bg-3)] border-r border-[var(--border-c)] py-5">
                     <div className="px-3.5 mb-3">
                         <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1.5">트랙</p>
-                        {/* visibleTracks 사용 — ai_generated는 조건부 노출 */}
                         {visibleTracks.map((t) => (
                             <button
                                 key={t.slug}
                                 onClick={() => {
                                     setActiveTrack(t.slug);
-                                    // 트랙 전환 시 난이도 필터는 "전체"로 리셋
-                                    // (직전 트랙에서 "중급" 필터를 켜둔 채 넘어가면
-                                    //  "왜 문제가 안 보이지?" 하는 혼란 방지)
                                     setActiveLevelFilter("all");
-
-                                    // URL도 함께 갱신해서 화면 상태와 주소창을 동기화
-                                    // scroll: false → 페이지 이동 시 스크롤이 맨 위로 튀는 것 방지
-                                    //   (사이드바 클릭은 같은 페이지 안에서의 상태 전환이라
-                                    //    스크롤 위치를 유지하는 게 자연스러움)
                                     router.replace(`/learn?track=${t.slug}`, { scroll: false });
                                 }}
                                 className={`w-full text-left text-[11px] px-2.5 py-1.5 rounded flex items-center gap-1.5 mb-0.5 transition-colors
@@ -221,7 +297,6 @@ function LearnContent() {
                         ))}
                     </div>
 
-                    {/* 진행률 바 - 선택된 트랙 기준 */}
                     <div className="px-3.5 mb-3">
                         <p className="text-[10px] text-[var(--text-3)] mb-1">
                             {completedInTrack} / {totalInTrack} 완료
@@ -250,16 +325,12 @@ function LearnContent() {
                     </div>
                 </aside>
 
-                {/* ============================================
-                    본문 — 이어하기 카드 + 필터 + 문제 리스트
-                    ============================================ */}
                 <div className="p-5">
                     {loading && <p className="text-sm text-[var(--text-2)] py-10 text-center">불러오는 중...</p>}
                     {error && <p className="text-sm text-red-500 py-10 text-center">{error}</p>}
 
                     {!loading && !error && (
                         <>
-                            {/* 이어하기 카드 - resumeProblem이 있을 때만 표시 */}
                             {resumeProblem && (
                                 <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-3.5 mb-4">
                                     <p className="text-[9px] tracking-widest uppercase text-[var(--text-3)] mb-1">
@@ -279,11 +350,56 @@ function LearnContent() {
                                 </div>
                             )}
 
-                            {/* 리스트 헤더 + 필터 pill */}
-                            <div className="flex items-center justify-between mb-3">
-                                <h1 className="text-sm font-bold tracking-tight">
+                            {/* ============================================================
+                                수정: 리스트 헤더
+                                - 데스크탑: 기존처럼 고정 텍스트 h1 (hidden md:block 추가)
+                                - 모바일: 첨부 예시처럼 "트랙명 ∨" pill 버튼 + 드롭다운 신규 추가
+                                ============================================================ */}
+                            <div className="flex items-center justify-between mb-3 relative">
+                                {/* 데스크탑 전용 고정 타이틀 */}
+                                <h1 className="hidden md:block text-sm font-bold tracking-tight">
                                     {TRACKS.find((t) => t.slug === activeTrack)?.name}
                                 </h1>
+
+                                {/* 모바일 전용 트랙 선택 pill + 드롭다운 */}
+                                <div className="md:hidden relative">
+                                    <button
+                                        onClick={() => setTrackDropdownOpen(!trackDropdownOpen)}
+                                        className="flex items-center gap-1.5 text-xs font-bold border border-[var(--border-strong)] rounded-full px-3 py-1.5 bg-[var(--bg-2)]"
+                                    >
+                                        {TRACKS.find((t) => t.slug === activeTrack)?.name}
+                                        <i
+                                            className={`ti ti-chevron-down transition-transform ${trackDropdownOpen ? "rotate-180" : ""}`}
+                                            style={{ fontSize: "12px" }}
+                                            aria-hidden="true"
+                                        />
+                                    </button>
+
+                                    {trackDropdownOpen && (
+                                        <div className="absolute top-full left-0 mt-1.5 bg-[var(--bg-2)] border border-[var(--border-strong)] rounded-md shadow-sm z-40 min-w-[160px] py-1">
+                                            {visibleTracks.map((t) => (
+                                                <button
+                                                    key={t.slug}
+                                                    onClick={() => {
+                                                        setActiveTrack(t.slug);
+                                                        setActiveLevelFilter("all");
+                                                        router.replace(`/learn?track=${t.slug}`, { scroll: false });
+                                                        setTrackDropdownOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[var(--bg-3)]"
+                                                >
+                                                    <span
+                                                        className="w-[6px] h-[6px] rounded-full flex-shrink-0"
+                                                        style={{ background: t.color }}
+                                                    />
+                                                    {t.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 난이도 필터 pill (수정 없음, 기존 그대로) */}
                                 <div className="flex gap-1">
                                     {LEVEL_FILTERS.map((f) => (
                                         <button
@@ -302,7 +418,6 @@ function LearnContent() {
                                 </div>
                             </div>
 
-                            {/* 문제 리스트 */}
                             {filteredProblems.length === 0 ? (
                                 <p className="text-sm text-[var(--text-3)] py-10 text-center">
                                     조건에 맞는 문제가 없습니다.
@@ -319,7 +434,6 @@ function LearnContent() {
                                                 className="flex items-center justify-between px-2 py-2.5 rounded-md hover:bg-[var(--bg-3)] transition-colors text-left"
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    {/* 완료 여부에 따라 dot 색 다르게 (완료=트랙 색, 미완료=회색) */}
                                                     <span
                                                         className="w-[5px] h-[5px] rounded-full flex-shrink-0"
                                                         style={{

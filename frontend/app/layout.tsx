@@ -25,6 +25,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             lang="ko"
             className={`dark ${notoSansKR.variable}`}
         >
+            <head>
+                {/* ============================================================
+                    신규: Tabler Icons 웹폰트
+                    ============================================================
+                    코드 곳곳에서 <i className="ti ti-xxx"> 형태로 아이콘을 썼는데,
+                    이 클래스들이 실제로 뭔가를 그리려면 Tabler Icons의 CSS/폰트
+                    파일을 브라우저가 불러올 수 있어야 함.
+                    이 링크가 없으면 클래스는 존재하지만 매핑될 폰트가 없어서
+                    "빈 사각형(혹은 완전히 투명한 텍스트)"로 렌더링됨 —
+                    텍스트가 옆에 같이 있으면 버튼 틀은 보이지만(예: /learn 햄버거),
+                    아이콘 혼자면 버튼 자체가 안 보이는 것처럼 느껴짐(예: 홈 햄버거) */}
+                <link
+                    rel="stylesheet"
+                    href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"
+                />
+            </head>
             <body>
                 <GlobalHeader />
                 {children}
