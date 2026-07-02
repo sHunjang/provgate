@@ -13,60 +13,58 @@ router = APIRouter(prefix="/api/problems", tags=["problems"])
 @router.get("/{level}")
 async def get_problems(
     level: str,
-    email: str = "",    # 쿼리 파라미터로 이메일 받기
+    email: str = "",
     db: AsyncSession = Depends(get_db)
     ):
 
-    # 유효한 수준인지 검증 - 딕셔너리로 O(1) 조회
     valid_levels = {"beginner", "intermediate", "advanced"}
-
     if level not in valid_levels:
         raise HTTPException(
             status_code=400,
             detail="올바르지 않은 수준입니다. beginner/intermediate/advanced 중 하나를 선택하세요."
         )
 
+    # ============================================================
+    # 신규: 로그인 유저의 user_id를 먼저 조회
+    # ============================================================
+    # WHERE절에서 owner_user_id와 비교하려면 이메일이 아니라 UUID가 필요함.
+    # 비로그인(email="")이면 current_user_id는 None으로 두고,
+    # 아래 SQL에서 "owner_user_id = NULL"은 항상 거짓이 되므로
+    # 자연스럽게 개인 문제는 하나도 안 보임 (별도 분기 없이 안전하게 처리됨)
+    current_user_id = None
+    if email:
+        user_result = await db.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": email}
+        )
+        user_row = user_result.fetchone()
+        if user_row:
+            current_user_id = user_row._mapping["id"]
 
-    # 수준별 문제 목록 조회
-    # order_idx 기준으로 정렬해서 문제 순서 보장
+    # ============================================================
+    # 수정: WHERE 조건에 "내가 owner인 문제"도 포함
+    # ============================================================
+    # 기존: owner_user_id IS NULL  → 공용 문제만
+    # 변경: 공용 문제(NULL) OR 내가 소유한 문제(owner_user_id = 내 id)
+    # 이렇게 하면 foundation/project/prompt는 그대로 전부 보이고,
+    # ai_generated는 "이 문제를 생성 요청한 사용자"에게만 보임
     result = await db.execute(
         text("""
             SELECT id, title, description, level, concept_tag,
                     order_idx, problem_type, track
             FROM problems
             WHERE level = :level
-            AND owner_user_id IS NULL
+            AND (owner_user_id IS NULL OR owner_user_id = :current_user_id)
             ORDER BY order_idx ASC
         """),
-        {"level": level}
+        {"level": level, "current_user_id": current_user_id}
     )
 
-    # 결과를 딕셔너리 리스트로 변환
-    # _mapping: SQLAlchemy Row를 딕셔너리처럼 접근할 수 있게 해줌
     problems = [dict(row._mapping) for row in result.fetchall()]
 
-    # 완료된 문제 ID 조회 (이메일이 있을 때만)
-    # email이 없으면 빈 리스트 반환
+    # (이하 completed_ids / status 조회 로직은 기존과 동일하게 유지)
     completed_ids = []
-    
-    # if email:
-    #     completed_result = await db.execute(
-    #         text("""
-    #             SELECT DISTINCT s.problem_id
-    #             FROM submissions s
-    #             JOIN users u ON s.user_id = u.id
-    #             WHERE u.email = :email
-    #             AND s.gate_passed = TRUE
-    #         """),
-    #         {"email": email}
-    #     )
-    #     completed_ids = [str(row.problem_id) for row in completed_result.fetchall()]
 
-    # # 문제별 완료 여부 추가
-    # for problem in problems:
-    #     problem["is_completed"] = str(problem["id"]) in completed_ids
-
-    # 완료된 문제 ID 조회 -> 진행 상태 조회로 변경
     if email:
         status_result = await db.execute(
             text("""
@@ -81,24 +79,18 @@ async def get_problems(
             """),
             {"email": email}
         )
-
-        # 문제별 상태를 딕셔너리로 저장
         problem_status = {
             str(row.problem_id): row.status
             for row in status_result.fetchall()
         }
-    
+
     for problem in problems:
         pid = str(problem["id"])
-        
         if email:
             status = problem_status.get(pid, "not_started")
         else:
             status = "not_started"
-        
         problem["status"] = status
-
-        # 기존 is_completed도 유지
         problem["is_completed"] = status == "completed"
 
     return {

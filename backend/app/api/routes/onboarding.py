@@ -21,6 +21,11 @@ import anthropic
 # JSON 파싱
 import json
 
+# 신규: random.sample로 개념 풀에서 무작위 5개를 뽑기 위해 추가
+# (AI에게 "다양하게 만들어라"라고 지시만 하는 대신, 우리 코드가
+#  직접 다양성을 강제하기 위한 모듈)
+import random
+
 # 환경변수에서 API 키 가져오기
 from app.core.config import settings
 
@@ -46,6 +51,35 @@ class QuizGenerateRequest(BaseModel):
     # 사용자 이메일 (선택 - 비로그인도 퀴즈 가능)
     # Rate Limitin은 로그인 유저만 적용
     email: str = ""
+
+
+# ============================================================
+# 신규: 개념 풀 (concept pool)
+# ============================================================
+# 기존엔 프롬프트 안에 "매번 다르게 만들어라"는 지시(Diversity Rules)만
+# 넣고 어떤 개념을 다룰지는 전부 AI 판단에 맡겼음. 그런데 LLM은 이런
+# "알아서 무작위로 골라라"는 지시를 받아도 확률이 높은(=흔히 등장하는)
+# 패턴으로 수렴하는 경향이 있어서, 실제로는 온보딩할 때마다 비슷한
+# 문제들이 반복해서 나오는 문제가 있었음.
+#
+# 해결: 무작위성을 AI에게 맡기지 않고, 파이썬의 random.sample()로
+# 우리 코드가 직접 이번 퀴즈에서 다룰 5개 개념을 미리 확정한 뒤,
+# "이 개념들로만 만들어라"라고 프롬프트에 강제 지정함.
+# → 다양성이 "AI의 확률적 판단"이 아니라 "코드의 구조"로 보장됨
+concept_pool = {
+    "beginner": [
+        "변수와 자료형", "조건문", "반복문", "문자열 슬라이싱",
+        "리스트 기초", "type 변환", "input/print 활용",
+    ],
+    "intermediate": [
+        "함수와 매개변수", "리스트 컴프리헨션", "딕셔너리 활용",
+        "튜플과 집합", "문자열 메서드", "예외 처리 기초", "재귀 입문",
+    ],
+    "advanced": [
+        "클래스와 객체지향", "재귀 알고리즘", "데코레이터",
+        "제너레이터", "예외 처리 심화", "정렬 알고리즘", "자료구조 활용",
+    ],
+}
 
 
 # 퀴즈 생성 엔드포인트
@@ -88,6 +122,12 @@ async def generate_quiz(
 
     level_desc = level_description[request.level]
 
+    # 신규: 이번 요청에서 다룰 5개 개념을 미리 확정
+    # random.sample: 중복 없이 5개를 무작위로 뽑음
+    # (풀이 개념별로 7개씩이라 5개를 뽑으면 7C5 = 21가지 조합이 나와서
+    #  매번 다른 조합이 나올 확률이 충분히 높음)
+    selected_concepts = random.sample(concept_pool[request.level], 5)
+
     
     # Claude API 호출
     # 소크라테스 힌트가 아닌 진단 퀴즈용 프롬프트
@@ -117,18 +157,14 @@ Never include any text outside the JSON structure.""",
 7. There must be exactly one correct answer
 8. Questions must include sufficient information to avoid ambiguity
 
-[Diversity Rules - IMPORTANT]
-9. Every quiz must be UNIQUE and DIFFERENT from previous quizzes
-10. Randomly select from these concept areas and vary each time:
-    - Variables, data types, type conversion
-    - Conditional statements, logical operators
-    - Loops, range(), iteration
-    - Functions, parameters, return values
-    - Lists, dictionaries, sets, tuples
-    - String manipulation, slicing
-    - Error handling, exceptions
-11. Use different code scenarios each time (avoid reusing same variable names or patterns)
-12. Randomize difficulty order within the 5 questions
+[Concept Assignment - MUST FOLLOW]
+Generate exactly one question for each of these 5 concepts, in this exact order:
+{chr(10).join(f"{i+1}. {c}" for i, c in enumerate(selected_concepts))}
+Do not substitute these concepts with others. Each question's "concept" field
+in the output JSON must match the assigned concept above (translated to Korean
+if needed).
+Use different code scenarios each time (avoid reusing same variable names or
+patterns from typical textbook examples).
 
 [Difficulty Guidelines]
 - Must require at least one level of thinking (code reasoning, etc.)
@@ -298,34 +334,52 @@ async def complete_onboarding(
 
     await db.commit()
 
-    
-    # 수준별 학습 로드맵 반환
-    # 딕셔너리로 O(1) 조회
-    roadmap = {
-        "beginner": [
-            "변수와 자료형",
-            "조건문 (if/elif/else)",
-            "반복문 (for/while)",
-            "함수 기초",
-            "리스트와 딕셔너리"
-        ],
+    # ============================================================
+    # 신규: 로드맵을 실제 문제 데이터 기반으로 동적 생성
+    # ============================================================
+    # 기존엔 아래처럼 손으로 적은 하드코딩 딕셔너리였음:
+    #   roadmap = {
+    #       "beginner": ["변수와 자료형", "조건문 (if/elif/else)", ...],
+    #       "intermediate": [...],
+    #       "advanced": [...],
+    #   }
+    # 문제는 이 문구들이 실제 DB의 concept_tag 값과 하나도 일치하지
+    # 않아서, 로드맵이 "보여주기만 하고 아무 동작도 못 하는" 죽은
+    # 텍스트였음.
+    #
+    # 해결: foundation 트랙(핵심 커리큘럼)에서 confirmed_level에 맞는
+    # 문제들을 order_idx 순서(=커리큘럼 진행 순서)대로 가져온 뒤,
+    # concept_tag별로 "이 레벨에서 처음 등장하는 문제" 하나씩만 남겨서
+    # 로드맵으로 사용함. 각 항목에 problem_id를 같이 내려줘서,
+    # 프론트에서 클릭하면 바로 그 문제로 이동할 수 있게 함.
+    roadmap_result = await db.execute(
+        text("""
+            SELECT id, concept_tag, order_idx
+            FROM problems
+            WHERE track = 'foundation'
+            AND level = :level
+            AND owner_user_id IS NULL
+            ORDER BY order_idx ASC
+        """),
+        {"level": confirmed_level}
+    )
 
-        "intermediate": [
-            "함수 심화 (람다, 클로저)",
-            "클래스와 객체지향",
-            "파일 입출력",
-            "예외 처리",
-            "모듈과 패키지"
-        ],
-
-        "advanced": [
-            "알고리즘과 자료구조",
-            "재귀함수",
-            "데코레이터",
-            "비동기 프로그래밍",
-            "디자인 패턴"
-        ]
-    }
+    # concept_tag가 같은 문제가 여러 개 있을 수 있어서(예: "문자열, 슬라이싱"이
+    # beginner에도, intermediate에도 있음) 이미 등장한 개념은 건너뛰고
+    # "이 레벨에서 처음 나오는 문제"만 로드맵에 남김
+    # set()을 쓰는 이유: "이미 봤는지" 확인이 O(1)이라 리스트보다 빠름
+    seen_concepts = set()
+    roadmap = []
+    for row in roadmap_result.fetchall():
+        row_data = dict(row._mapping)
+        tag = row_data["concept_tag"]
+        if tag in seen_concepts:
+            continue
+        seen_concepts.add(tag)
+        roadmap.append({
+            "concept_tag": tag,
+            "problem_id": str(row_data["id"]),
+        })
 
     return {
         "email": request.email,
@@ -334,7 +388,9 @@ async def complete_onboarding(
         "score": score,
         "total": total,
         "ratio": round(ratio * 100, 1),     # 퍼센트로 변환
-        "roadmap": roadmap[confirmed_level]
+        # 수정: 문자열 리스트 → {concept_tag, problem_id} 객체 리스트
+        # (프론트에서 problem_id로 바로 라우팅 가능하도록)
+        "roadmap": roadmap
     }
 
 

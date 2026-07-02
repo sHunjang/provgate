@@ -19,6 +19,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/app/hooks/useAuth";
 
+// 신규: 사이트 공통 네비게이션 (로고 + 링크 + 로그인/유저메뉴 + 테마토글)
+// 오늘 오후에 6개 페이지 중복 코드를 통합해서 만든 컴포넌트를 그대로 재사용
+import SiteNav from "@/app/components/SiteNav";
+
 // 퀴즈 문항 타입 정의
 type Question = {
     id: number;
@@ -157,35 +161,63 @@ function QuizContent() {
     };
 
     // 로딩 화면
+    // 수정: bg-gray-50 dark:bg-gray-900 → var(--bg) / SiteNav 추가
+    // (이 페이지엔 원래 헤더 자체가 없었는데, 다른 페이지들과의 일관성을 위해
+    //  로딩/에러/본문 화면 전부에 SiteNav를 붙임)
     if (loading) {
         return (
-            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
-                <div className="text-center">
-                    <div className="text-5xl mb-4">🤔</div>
-                    <p className="text-lg text-gray-600 dark:text-gray-400">
-                        AI가 {level} 맞춤 진단 문제를 생성하고 있어요 🤖
-                    </p>
-                    <p className="text-sm text-gray-400 mt-2">
-                        수준에 맞는 문제를 분석 중이에요. 시간이 조금 걸릴 수 있어요..
-                    </p>
+            <main className="min-h-screen bg-[var(--bg)]">
+                <SiteNav />
+                <div className="flex flex-col items-center justify-center py-24">
+                    <div className="text-center">
+                        {/* ============================================================
+                        신규: 회전 스피너
+                        ============================================================
+                        border-4: 두꺼운 원형 테두리
+                        border-t-transparent: 위쪽 테두리만 투명하게 뚫어서
+                          "원의 일부가 비어있는" 모양을 만듦 → 회전시키면
+                          그 빈 부분이 계속 도는 것처럼 보여서 "로딩 중" 느낌을 줌
+                        animate-spin: Tailwind 내장 애니메이션, 1초에 한 바퀴 회전
+                        rounded-full: 완전한 원형으로 만듦
+                        w-10 h-10: 크기 지정 (텍스트보다 살짝 작게, 부담스럽지 않은 크기)
+                    */}
+                        <div
+                            className="w-10 h-10 border-4 rounded-full animate-spin mx-auto mb-5"
+                            style={{
+                                borderColor: "var(--accent-bg)",
+                                borderTopColor: "var(--accent)",
+                            }}
+                        />
+                        <p className="text-base text-[var(--text-2)]">
+                            AI가 {level} 맞춤 진단 문제를 생성하고 있어요 🤖
+                        </p>
+                        <p className="text-sm text-[var(--text-3)] mt-2">
+                            수준에 맞는 문제를 분석 중이에요. 시간이 조금 걸릴 수 있어요..
+                        </p>
+                    </div>
                 </div>
             </main>
         );
     }
 
     // 에러 화면
+    // 수정: 배경/텍스트 CSS 변수화, 버튼 indigo → var(--btn-bg)
     if (error) {
         return (
-            <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center">
-                <div className="text-center">
-                    <div className="text-5xl mb-4">😢</div>
-                    <p className="text-lg text-gray-600 dark:text-gray-400">{error}</p>
-                    <button
-                        onClick={() => router.push("/")}
-                        className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg"
-                    >
-                        처음으로 돌아가기
-                    </button>
+            <main className="min-h-screen bg-[var(--bg)]">
+                <SiteNav />
+                <div className="flex flex-col items-center justify-center py-24">
+                    <div className="text-center">
+                        <div className="text-5xl mb-4">😢</div>
+                        <p className="text-base text-[var(--text-2)]">{error}</p>
+                        <button
+                            onClick={() => router.push("/")}
+                            className="mt-4 px-6 py-2 rounded-lg text-sm"
+                            style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
+                        >
+                            처음으로 돌아가기
+                        </button>
+                    </div>
                 </div>
             </main>
         );
@@ -204,104 +236,141 @@ function QuizContent() {
     const allAnswered = answers.every((a) => a !== -1);
 
     return (
-        <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
-            <div className="w-full max-w-2xl">
-                {/* 진행 상태 바 */}
-                <div className="mb-8">
-                    <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
-                        <span>
-                            {currentIdx + 1} / {questions.length}
+        <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
+            {/* 신규: SiteNav — 이 페이지는 특정 링크가 필요 없어서 props 없이 기본형만 사용 */}
+            <SiteNav />
+
+            <div className="flex flex-col items-center px-6 py-10">
+                <div className="w-full max-w-2xl">
+                    {/* 진행 상태 바 */}
+                    {/* 수정: text-gray-500 → var(--text-2), bg-gray-200 → var(--border-c),
+                        진행률 바 색 indigo-600 → var(--accent) */}
+                    <div className="mb-8">
+                        <div className="flex justify-between text-sm text-[var(--text-2)] mb-2">
+                            <span>
+                                {currentIdx + 1} / {questions.length}
+                            </span>
+                            <span>{answers.filter((a) => a !== -1).length}개 답변 완료</span>
+                        </div>
+                        <div className="w-full bg-[var(--border-c)] rounded-full h-2">
+                            <div
+                                className="h-2 rounded-full transition-all"
+                                style={{
+                                    width: `${((currentIdx + 1) / questions.length) * 100}%`,
+                                    background: "var(--accent)",
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* 문제 카드 */}
+                    {/* 수정: bg-white dark:bg-gray-800 → var(--bg-2) */}
+                    <div className="bg-[var(--bg-2)] rounded-xl p-8 mb-6 border border-[var(--border-c)]">
+                        {/* 개념 태그 */}
+                        {/* 수정: text-indigo-600 bg-indigo-50 → var(--accent3)/var(--accent3-bg)
+                            (GateModal의 concept 태그와 동일한 색 체계로 통일 — 게이트도
+                             같은 성격의 "개념 확인" 태그라서 같은 색을 씀) */}
+                        <span
+                            className="text-xs font-medium px-3 py-1 rounded-full"
+                            style={{ background: "var(--accent3-bg)", color: "var(--accent3)" }}
+                        >
+                            {currentQuestion.concept}
                         </span>
-                        <span>{answers.filter((a) => a !== -1).length}개 답변 완료</span>
+
+                        {/* 문제 */}
+                        {/* whitespace-pre-wrap: 코드 줄바꿈 유지 */}
+                        <p className="text-base font-medium mt-4 mb-6 whitespace-pre-wrap">
+                            {currentQuestion.question
+                                .replace(/```python/g, "")
+                                .replace(/```/g, "")
+                                .trim()}
+                        </p>
+
+                        {/* 보기 */}
+                        {/* 수정: indigo 선택/호버 색 → var(--accent) 계열로 통일 */}
+                        <div className="space-y-3">
+                            {currentQuestion.options.map((option, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => handleAnswer(idx)}
+                                    className="w-full p-4 rounded-lg border-2 text-left transition-all text-sm"
+                                    style={
+                                        currentAnswer === idx
+                                            ? {
+                                                  borderColor: "var(--accent)",
+                                                  background: "var(--accent-bg)",
+                                                  color: "var(--text)",
+                                                  fontWeight: 500,
+                                              }
+                                            : {
+                                                  borderColor: "var(--border-c)",
+                                                  background: "var(--bg-2)",
+                                                  color: "var(--text-2)",
+                                              }
+                                    }
+                                >
+                                    {option}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    {/* 진행률 바 - 현재 인덱스 기준 */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                            className="bg-indigo-600 h-2 rounded-full transition-all"
-                            style={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
-                        />
-                    </div>
-                </div>
 
-                {/* 문제 카드 */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm mb-6">
-                    {/* 개념 태그 */}
-                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                        {currentQuestion.concept}
-                    </span>
+                    {/* 네비게이션 버튼 */}
+                    {/* 수정: 비활성 상태 gray → var(--bg-3)/var(--text-3),
+                        활성 상태 indigo → var(--btn-bg) */}
+                    <div className="flex gap-3">
+                        {/* 이전 버튼 */}
+                        <button
+                            onClick={handlePrev}
+                            disabled={currentIdx === 0}
+                            className="flex-1 py-3 rounded-xl font-medium transition-all text-sm border"
+                            style={
+                                currentIdx === 0
+                                    ? {
+                                          background: "var(--bg-3)",
+                                          color: "var(--text-3)",
+                                          borderColor: "var(--border-c)",
+                                          cursor: "not-allowed",
+                                      }
+                                    : {
+                                          background: "var(--bg-2)",
+                                          color: "var(--text-2)",
+                                          borderColor: "var(--border-strong)",
+                                      }
+                            }
+                        >
+                            ← 이전
+                        </button>
 
-                    {/* 문제 */}
-                    {/* whitespace-pre-wrap: 코드 줄바꿈 유지 */}
-                    <p className="text-lg font-medium text-gray-900 dark:text-white mt-4 mb-6 whitespace-pre-wrap">
-                        {currentQuestion.question
-                            .replace(/```python/g, "")
-                            .replace(/```/g, "")
-                            .trim()}
-                    </p>
-
-                    {/* 보기 */}
-                    <div className="space-y-3">
-                        {currentQuestion.options.map((option, idx) => (
+                        {/* 다음 또는 제출 버튼 */}
+                        {isLastQuestion ? (
                             <button
-                                key={idx}
-                                onClick={() => handleAnswer(idx)}
-                                className={`w-full p-4 rounded-lg border-2 text-left transition-all
-                                ${
-                                    currentAnswer === idx
-                                        ? "border-indigo-500 bg-indigo-50 text-indigo-900 font-medium"
-                                        : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:border-indigo-300 hover:bg-indigo-50 dark:hover:bg-gray-600"
-                                }`}
+                                onClick={handleSubmit}
+                                disabled={!allAnswered}
+                                className="flex-grow py-3 rounded-xl font-medium transition-all text-sm"
+                                style={
+                                    allAnswered
+                                        ? { background: "var(--btn-bg)", color: "var(--btn-text)" }
+                                        : { background: "var(--bg-3)", color: "var(--text-3)", cursor: "not-allowed" }
+                                }
                             >
-                                {option}
+                                제출하기 ✓
                             </button>
-                        ))}
+                        ) : (
+                            <button
+                                onClick={handleNext}
+                                disabled={currentAnswer === -1}
+                                className="flex-grow py-3 rounded-xl font-medium transition-all text-sm"
+                                style={
+                                    currentAnswer !== -1
+                                        ? { background: "var(--btn-bg)", color: "var(--btn-text)" }
+                                        : { background: "var(--bg-3)", color: "var(--text-3)", cursor: "not-allowed" }
+                                }
+                            >
+                                다음 →
+                            </button>
+                        )}
                     </div>
-                </div>
-
-                {/* 네비게이션 버튼 */}
-                <div className="flex gap-3">
-                    {/* 이전 버튼 */}
-                    <button
-                        onClick={handlePrev}
-                        disabled={currentIdx === 0}
-                        className={`flex-1 py-3 rounded-xl font-medium transition-all
-                ${
-                    currentIdx === 0
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                }`}
-                    >
-                        ← 이전
-                    </button>
-
-                    {/* 다음 또는 제출 버튼 */}
-                    {isLastQuestion ? (
-                        <button
-                            onClick={handleSubmit}
-                            disabled={!allAnswered}
-                            className={`flex-2 flex-grow py-3 rounded-xl font-medium transition-all
-                ${
-                    allAnswered
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
-                        >
-                            제출하기 ✓
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleNext}
-                            disabled={currentAnswer === -1}
-                            className={`flex-grow py-3 rounded-xl font-medium transition-all
-                ${
-                    currentAnswer !== -1
-                        ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
-                        >
-                            다음 →
-                        </button>
-                    )}
                 </div>
             </div>
         </main>
@@ -312,8 +381,9 @@ export default function QuizPage() {
     return (
         <Suspense
             fallback={
-                <main className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-8">
-                    <p className="text-gray-600">로딩 중...</p>
+                // 수정: bg-gray-50 dark:bg-gray-900 → var(--bg), text-gray-600 → var(--text-2)
+                <main className="min-h-screen bg-[var(--bg)] flex flex-col items-center justify-center p-8">
+                    <p className="text-[var(--text-2)] text-sm">로딩 중...</p>
                 </main>
             }
         >

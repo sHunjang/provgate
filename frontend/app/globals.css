@@ -3,21 +3,54 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 라이트 모드 (기본) — ProvGate-3 확정 팔레트 */
+  --bg: #f5f4f1;
+  --bg-2: #ffffff;
+  --bg-3: #edecea;
+  --border-c: #e2e0da;
+  --border-strong: #cccccc;
+  --text: #111111;
+  --text-2: #555555;
+  --text-3: #aaaaaa;
+
+  /* 트랙별 accent (Python 기초 / 실무 설계 / AI 활용) */
+  --accent: #2a5c3f;
+  --accent-bg: #e4f0e8;
+  --accent2: #7a5c00;
+  --accent2-bg: #f5f0dc;
+  --accent3: #1a3a6a;
+  --accent3-bg: #e4ecf5;
+
+  --btn-bg: #111111;
+  --btn-text: #f5f4f1;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --bg: #1c1b18;
+  --bg-2: #252420;
+  --bg-3: #2e2d29;
+  --border-c: #333028;
+  --border-strong: #444444;
+  --text: #f0ede8;
+  --text-2: #888888;
+  --text-3: #555555;
+
+  --accent: #4a9e6e;
+  --accent-bg: #1a2e22;
+  --accent2: #c49a20;
+  --accent2-bg: #2a2210;
+  --accent3: #4a7ab5;
+  --accent3-bg: #141e2e;
+
+  --btn-bg: #f0ede8;
+  --btn-text: #1c1b18;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-noto-sans-kr), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 @layer utilities {
