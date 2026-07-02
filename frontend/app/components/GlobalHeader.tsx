@@ -15,7 +15,8 @@ export default function GlobalHeader() {
         pathname === "/" ||
         pathname?.startsWith("/learn") ||
         pathname?.startsWith("/auth") ||
-        pathname === "/stats";
+        pathname === "/stats" || 
+        pathname?.startsWith("/onboarding");
 
     // ============================================================
     // 수정: 자체 네비게이션을 가진 페이지들을 모두 여기서 숨김 처리

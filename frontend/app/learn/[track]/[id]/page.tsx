@@ -97,6 +97,11 @@ export default function ProblemPage() {
 
     const [conditionsSubmitted, setConditionsSubmitted] = useState(false);
 
+    // 모바일 헤더 드롭다운 열림/닫힘
+    // 이 페이지는 SiteNav를 쓰지 않는 특수 페이지(문제 풀이 전용 자체 헤더)라
+    // 홈/learn에서 썼던 것과 같은 패턴을 이 안에서 독립적으로 구현함
+    const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+
     const [selectedLanguage, setSelectedLanguage] = useState<"python" | "javascript">("python");
 
     const { formattedTime, elapsed, isVisible, toggleVisibility } = useTimer();
@@ -252,26 +257,34 @@ export default function ProblemPage() {
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
             {/* ===== 상단 헤더 ===== */}
-            <header className="border-b border-[var(--border-c)] px-6 py-4 flex items-center justify-between bg-[var(--bg-2)]">
-                <div className="flex items-center gap-4">
+            {/* ===== 상단 헤더 ===== */}
+            {/* 수정: relative 추가 (모바일 드롭다운의 기준점) */}
+            <header className="border-b border-[var(--border-c)] px-6 py-4 flex items-center justify-between bg-[var(--bg-2)] relative">
+                {/* 왼쪽: 뒤로가기 + 제목 — 데스크탑/모바일 공통으로 항상 표시 */}
+                <div className="flex items-center gap-4 min-w-0">
                     <button
                         onClick={() => router.push("/learn")}
-                        className="text-sm text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
+                        className="text-sm text-[var(--text-3)] hover:text-[var(--text)] transition-colors flex-shrink-0"
                     >
                         ← 목록
                     </button>
-                    <div>
+                    {/* min-w-0 + truncate: 제목이 길 때 줄바꿈 대신 말줄임표로 잘리게 함
+            (모바일 좁은 화면에서 제목이 여러 줄로 밀리는 걸 방지) */}
+                    <div className="min-w-0">
                         <span
                             className="text-xs font-medium uppercase"
                             style={{ color: "var(--accent)" }}
                         >
                             {problem.concept_tag}
                         </span>
-                        <h1 className="text-lg font-bold mt-1">{problem.title}</h1>
+                        <h1 className="text-lg font-bold mt-1 truncate">{problem.title}</h1>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                {/* ============================================================
+        데스크탑 전용: 언어선택 + 환경상태 + 타이머
+        ============================================================ */}
+                <div className="hidden md:flex items-center gap-4">
                     {needsCodeExecution && (
                         <div className="flex items-center gap-2 bg-[var(--bg-3)] rounded-lg p-1">
                             <button
@@ -358,7 +371,10 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* ============================================================
+        데스크탑 전용: 유저 + 로그아웃 + 테마
+        ============================================================ */}
+                <div className="hidden md:flex items-center gap-2">
                     {user && (
                         <span className="text-xs text-[var(--text-3)] hidden sm:block">
                             {user.email?.split("@")[0]}
@@ -372,20 +388,160 @@ export default function ProblemPage() {
                                 router.push("/");
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium
-                                border border-[var(--border-strong)] bg-[var(--bg-3)] text-[var(--text-2)]
-                                hover:bg-[var(--bg)] transition-all"
+                    border border-[var(--border-strong)] bg-[var(--bg-3)] text-[var(--text-2)]
+                    hover:bg-[var(--bg)] transition-all"
                         >
                             로그아웃
                         </button>
                     )}
                     <ThemeToggle />
                 </div>
+
+                {/* ============================================================
+        신규: 모바일 전용 — 테마 토글 + 햄버거만 표시
+        (SiteNav의 모바일 그룹과 동일한 패턴: 테마는 항상 보이게,
+         나머지는 햄버거 뒤로 숨김)
+        ============================================================ */}
+                <div className="md:hidden flex items-center gap-2 flex-shrink-0">
+                    <ThemeToggle />
+                    <button
+                        onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
+                        className="p-1.5 text-[var(--text-2)]"
+                        aria-label="메뉴 열기"
+                    >
+                        <i
+                            className={`ti ${headerMenuOpen ? "ti-x" : "ti-menu-2"}`}
+                            style={{ fontSize: "18px" }}
+                            aria-hidden="true"
+                        />
+                    </button>
+                </div>
+
+                {/* 모바일 드롭다운 — 언어선택/환경상태/타이머/유저/로그아웃을 전부 여기로 이동 */}
+                {headerMenuOpen && (
+                    <div className="md:hidden absolute top-full left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
+                        {needsCodeExecution && (
+                            <div className="flex items-center gap-2 bg-[var(--bg-3)] rounded-lg p-1 self-start">
+                                <button
+                                    onClick={() => {
+                                        setSelectedLanguage("python");
+                                        setCode(problem?.starter_code?.["python"] || "");
+                                        setTestResult(null);
+                                        setAiHint(null);
+                                        setHintStep(0);
+                                    }}
+                                    className="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                                    style={
+                                        selectedLanguage === "python"
+                                            ? { background: "var(--btn-bg)", color: "var(--btn-text)" }
+                                            : { color: "var(--text-3)" }
+                                    }
+                                >
+                                    Python
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSelectedLanguage("javascript");
+                                        setCode(problem?.starter_code?.["javascript"] || "");
+                                        setTestResult(null);
+                                        setAiHint(null);
+                                        setHintStep(0);
+                                    }}
+                                    className="px-3 py-1 rounded-md text-xs font-medium transition-all"
+                                    style={
+                                        selectedLanguage === "javascript"
+                                            ? { background: "var(--accent2)", color: "#fff" }
+                                            : { color: "var(--text-3)" }
+                                    }
+                                >
+                                    JavaScript
+                                </button>
+                            </div>
+                        )}
+
+                        {selectedLanguage === "python" &&
+                            needsCodeExecution &&
+                            (pyodideLoading ? (
+                                <span
+                                    className="text-sm"
+                                    style={{ color: "var(--accent2)" }}
+                                >
+                                    ⏳ Python 환경 로딩 중...
+                                </span>
+                            ) : pyodideError ? (
+                                <span className="text-sm text-red-500">❌ Python 로드 실패</span>
+                            ) : (
+                                <span
+                                    className="text-sm"
+                                    style={{ color: "var(--accent)" }}
+                                >
+                                    ✅ Python 준비 완료
+                                </span>
+                            ))}
+
+                        {selectedLanguage === "javascript" && needsCodeExecution && (
+                            <span
+                                className="text-sm"
+                                style={{ color: "var(--accent2)" }}
+                            >
+                                ✅ JavaScript 준비 완료
+                            </span>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={toggleVisibility}
+                                className="text-sm text-[var(--text-2)]"
+                            >
+                                {isVisible ? "⏱️ 타이머 숨기기" : "⏱️ 타이머 보기"}
+                            </button>
+                            {isVisible && (
+                                <span
+                                    className="text-sm font-mono font-bold"
+                                    style={{ color: "var(--accent)" }}
+                                >
+                                    {formattedTime}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="border-t border-[var(--border-c)] pt-3">
+                            {user ? (
+                                <>
+                                    <p className="text-sm text-[var(--text-2)] mb-2">{user.email}</p>
+                                    <button
+                                        onClick={async () => {
+                                            const supabase = createClient();
+                                            await supabase.auth.signOut();
+                                            setHeaderMenuOpen(false);
+                                            router.push("/");
+                                        }}
+                                        className="text-sm"
+                                        style={{ color: "var(--accent2)" }}
+                                    >
+                                        로그아웃
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        router.push("/auth/login");
+                                        setHeaderMenuOpen(false);
+                                    }}
+                                    className="text-sm text-[var(--text-2)]"
+                                >
+                                    로그인
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </header>
 
             {/* ===== 메인 레이아웃 - 좌우 분할 ===== */}
-            <div className="flex h-[calc(100vh-64px)]">
+            <div className="flex flex-col md:flex-row md:h-[calc(100vh-64px)]">
                 {/* ===== 왼쪽: 문제 설명 ===== */}
-                <div className="w-1/2 border-r border-[var(--border-c)] p-6 overflow-y-auto bg-[var(--bg-3)]">
+                <div className="w-full md:w-1/2 border-r border-[var(--border-c)] p-6 overflow-y-auto bg-[var(--bg-3)]">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span
                             className="text-xs px-2 py-1 rounded-full font-medium"
@@ -589,7 +745,7 @@ export default function ProblemPage() {
                 </div>
 
                 {/* ===== 오른쪽: 코드 에디터 ===== */}
-                <div className="w-1/2 flex flex-col p-6 bg-[var(--bg)]">
+                <div className="w-full md:w-1/2 flex flex-col p-6 bg-[var(--bg)]">
                     {problem.problem_type === "ai_reading" || problem.problem_type === "ai_question" ? (
                         <div className="flex-1 flex items-center justify-center">
                             <div className="text-center text-[var(--text-3)]">
@@ -615,7 +771,7 @@ export default function ProblemPage() {
                             <CodeEditor
                                 value={code}
                                 onChange={setCode}
-                                height="calc(100vh - 200px)"
+                                height="60vh"
                             />
 
                             {problem.problem_type === "coding" && (

@@ -53,7 +53,7 @@ function HomeContent() {
             router.push("/auth/login");
             return;
         }
-        router.push("/onboarding/quiz");
+        router.push("/onboarding");
     };
 
     // "게스트로 체험하기" 버튼 클릭 시 실행
