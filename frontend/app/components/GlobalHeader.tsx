@@ -1,7 +1,5 @@
 "use client";
 
-// usePathname: 현재 URL 경로를 읽어오는 훅
-// 어떤 페이지에 있는지 판단해서 조건부 렌더링에 사용
 import { usePathname, useRouter } from "next/navigation";
 import AuthButton from "@/app/components/AuthButton";
 import ThemeToggle from "@/app/components/ThemeToggle";
@@ -12,19 +10,32 @@ export default function GlobalHeader() {
     const router = useRouter();
     const { user } = useAuth();
 
-    // 문제 풀이 페이지(/problems/[id])에서는 숨김
-    // 조건: /problems/로 시작하고 /problems 자체는 아닌 경우
-    // 예: /problems/abc123 → 숨김 (문제 풀이 페이지)
-    //     /problems        → 표시 (문제 목록 페이지)
-    const isProblemPage = pathname?.startsWith("/problems/") && pathname !== "/problems";
+    // 문제 풀이 데이터(/problems/[id])는 자체 헤더가 있어서 숨김
+    const hasOwnNav =
+        pathname === "/" ||
+        pathname?.startsWith("/learn") ||
+        pathname?.startsWith("/auth") ||
+        pathname === "/stats" || 
+        pathname?.startsWith("/onboarding");
 
-    // 문제 풀이 페이지면 null 반환 (렌더링 안 함)
-    // 해당 페이지는 자체 헤더에 AuthButton + ThemeToggle 통합됨
-    if (isProblemPage) return null;
+    // ============================================================
+    // 수정: 자체 네비게이션을 가진 페이지들을 모두 여기서 숨김 처리
+    // ============================================================
+    // 기존에는 /problems/[id](문제 풀이 에디터)만 체크했는데,
+    // 오늘 리디자인한 홈(/)과 /learn도 각자 자체 nav에
+    // 로그인 버튼 + 테마 토글을 직접 통합했기 때문에 (아래 page.tsx 참고)
+    // GlobalHeader까지 같이 뜨면 우측 상단에 버튼이 두 겹으로 겹침.
+    //
+    // pathname === "/"          → 홈은 정확히 "/"일 때만 (다른 페이지가 "/"로 시작하진 않으니 안전)
+    // pathname?.startsWith("/learn") → /learn, /learn?track=... 전부 포함
+    //   (쿼리스트링은 pathname에 안 잡히지만, 혹시 몰라 향후 /learn/[track] 같은
+    //    하위 경로가 생겨도 자동으로 커버되도록 startsWith 사용)
+    const isProblemSolvePage = pathname?.startsWith("/problems/") && pathname !== "/problems";
+
+    if (isProblemSolvePage || hasOwnNav) return null;
 
     return (
         <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-            {/* 로그인 상태일 때 유저 정보 + 통계 링크 표시 */}
             {user && (
                 <button
                     onClick={() => router.push("/stats")}
@@ -33,10 +44,7 @@ export default function GlobalHeader() {
                         bg-gray-800 border-gray-600 text-gray-300
                         hover:bg-gray-700"
                 >
-                    {/* 유저 이메일 앞부분 */}
                     <span>👤</span>
-                    {/* <span>{user.email?.split("@")[0]}</span> */}
-                    {/* <span className="text-gray-500">·</span> */}
                     <span className="text-indigo-400">내 활동 확인</span>
                 </button>
             )}
