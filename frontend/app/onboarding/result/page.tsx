@@ -284,7 +284,7 @@ function ResultContent() {
 
                 {/* 시작 버튼 */}
                 <button
-                    onClick={() => router.push("/problems")}
+                    onClick={() => router.push("/learn")}
                     className="w-full py-4 bg-indigo-600 text-white rounded-xl
             font-semibold text-lg hover:bg-indigo-700 transition-all"
                 >

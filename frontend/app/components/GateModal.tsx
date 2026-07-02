@@ -23,7 +23,7 @@ type GateModalProps = {
     onClose: () => void;
 };
 
-// 게이트 문자 타입
+// 게이트 문제 타입
 type GateQuestion = {
     question: string;
     options: string[];
@@ -149,19 +149,24 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
 
     return (
         // 모달 오버레이 - 배경 클릭해도 닫히지 않음 (의도적)
+        // bg-black/70은 팔레트와 무관하게 고정값 유지 — 모달 뒤 배경을 어둡게
+        // 눌러주는 역할이라, 라이트/다크 어느 쪽이든 "검은 반투명"이 자연스러움
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-2xl w-full max-w-lg border border-gray-600 max-h-[90vh] overflow-y-auto">
+            {/* 수정: bg-gray-800 border-gray-600 → CSS 변수로 통일 */}
+            <div className="bg-[var(--bg-2)] rounded-2xl w-full max-w-lg border border-[var(--border-c)] max-h-[90vh] overflow-y-auto">
                 {/* 모달 헤더 */}
-                <div className="p-6 border-b border-gray-700 flex items-center justify-between">
+                <div className="p-6 border-b border-[var(--border-c)] flex items-center justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-white">🔒 이해 확인 게이트</h2>
-                        <p className="text-sm text-gray-400 mt-1">같은 개념의 다른 문제를 풀어야 제출할 수 있어요</p>
+                        <h2 className="text-xl font-bold">🔒 이해 확인 게이트</h2>
+                        <p className="text-sm text-[var(--text-2)] mt-1">
+                            같은 개념의 다른 문제를 풀어야 제출할 수 있어요
+                        </p>
                     </div>
                     {/* 닫기 버튼 - miny 피드백 반영 */}
                     {/* 게이트 도중 나가고 싶을 때 뒤로가기 외에 탈출 수단 제공 */}
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-white transition-all text-2xl leading-none ml-4 flex-shrink-0"
+                        className="text-[var(--text-3)] hover:text-[var(--text)] transition-all text-2xl leading-none ml-4 flex-shrink-0"
                         aria-label="닫기"
                     >
                         ✕
@@ -174,15 +179,16 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                     {rateLimited ? (
                         <div className="text-center py-8">
                             <div className="text-5xl mb-4">🚫</div>
-                            <p className="text-lg font-bold text-red-400 mb-2">오늘 게이트 사용 횟수를 모두 썼어요</p>
-                            <p className="text-sm text-gray-400 mb-6">
+                            {/* 위험/한도초과 안내는 관례상 빨강 유지 (팔레트 예외) */}
+                            <p className="text-lg font-bold mb-2 text-red-500">오늘 게이트 사용 횟수를 모두 썼어요</p>
+                            <p className="text-sm text-[var(--text-2)] mb-6">
                                 게이트 문제 생성은 하루 10회까지 가능해요.
                                 <br />
                                 자정(00:00)에 초기화됩니다.
                             </p>
                             <button
                                 onClick={onClose}
-                                className="w-full py-3 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-all"
+                                className="w-full py-3 rounded-xl font-semibold transition-all bg-[var(--bg-3)] text-[var(--text-2)] hover:bg-[var(--bg)]"
                             >
                                 돌아가기
                             </button>
@@ -190,11 +196,18 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                     ) : (
                         <>
                             {/* 남은 횟수 경고 배너 (remaining ≤ 4, 즉 6회 이상 사용 시) */}
+                            {/* 수정: yellow → var(--accent2) (경고/주의 계열 팔레트 통일) */}
                             {usage && usage.remaining <= 4 && usage.remaining > 0 && (
-                                <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
-                                    <p className="text-sm text-yellow-300">
+                                <div
+                                    className="mb-4 p-3 rounded-lg border"
+                                    style={{ background: "var(--accent2-bg)", borderColor: "var(--accent2)" }}
+                                >
+                                    <p
+                                        className="text-sm"
+                                        style={{ color: "var(--accent2)" }}
+                                    >
                                         ⚠️ 오늘 게이트 사용이 {usage.remaining}회 남았어요
-                                        <span className="text-yellow-500/70">
+                                        <span className="opacity-70">
                                             {" "}
                                             ({usage.used}/{usage.limit})
                                         </span>
@@ -206,14 +219,16 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                             {!gateQuestion && !loading && (
                                 <div className="text-center py-8">
                                     <div className="text-5xl mb-4">🧠</div>
-                                    <p className="text-gray-300 mb-6">
+                                    <p className="text-[var(--text-2)] mb-6 text-sm">
                                         테스트를 통과했어요!
                                         <br />
                                         이제 진짜 이해했는지 확인해볼까요?
                                     </p>
+                                    {/* 수정: bg-indigo-600 → var(--btn-bg) (사이트 공통 주요 버튼 색) */}
                                     <button
                                         onClick={fetchGateQuestion}
-                                        className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                                        className="px-8 py-3 rounded-xl font-semibold transition-all"
+                                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
                                     >
                                         게이트 문제 받기
                                     </button>
@@ -223,7 +238,7 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                             {/* 로딩 상태 */}
                             {loading && (
                                 <div className="text-center py-8">
-                                    <p className="text-gray-400">
+                                    <p className="text-[var(--text-2)] text-sm">
                                         {gateQuestion ? "답안 확인 중..." : "문제 생성 중..."}
                                     </p>
                                 </div>
@@ -232,13 +247,16 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                             {/* 문제 표시 */}
                             {gateQuestion && !loading && !result && (
                                 <div>
-                                    {/* 개념 태그 */}
-                                    <span className="text-xs text-indigo-400 bg-indigo-900/50 px-3 py-1 rounded-full">
+                                    {/* 개념 태그 - 수정: indigo → var(--accent3) (네이비, 정보성 배지 색) */}
+                                    <span
+                                        className="text-xs px-3 py-1 rounded-full"
+                                        style={{ background: "var(--accent3-bg)", color: "var(--accent3)" }}
+                                    >
                                         {gateQuestion.concept}
                                     </span>
 
                                     {/* 문제 */}
-                                    <p className="text-white mt-4 mb-6 whitespace-pre-wrap leading-relaxed">
+                                    <p className="mt-4 mb-6 whitespace-pre-wrap leading-relaxed text-sm">
                                         {gateQuestion.question
                                             .replace(/```python/g, "")
                                             .replace(/```/g, "")
@@ -251,12 +269,21 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                                             <button
                                                 key={idx}
                                                 onClick={() => setSelectedAnswer(idx)}
-                                                className={`w-full p-3 rounded-lg border-2 text-left text-sm transition-all
-                                                ${
+                                                className="w-full p-3 rounded-lg border-2 text-left text-sm transition-all"
+                                                // 수정: indigo → var(--accent) (선택된 보기는 그린 계열로 통일)
+                                                style={
                                                     selectedAnswer === idx
-                                                        ? "border-indigo-500 bg-indigo-900/50 text-white"
-                                                        : "border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500"
-                                                }`}
+                                                        ? {
+                                                              borderColor: "var(--accent)",
+                                                              background: "var(--accent-bg)",
+                                                              color: "var(--text)",
+                                                          }
+                                                        : {
+                                                              borderColor: "var(--border-c)",
+                                                              background: "var(--bg-3)",
+                                                              color: "var(--text-2)",
+                                                          }
+                                                }
                                             >
                                                 {option}
                                             </button>
@@ -267,12 +294,16 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                                     <button
                                         onClick={handleSubmit}
                                         disabled={selectedAnswer === null}
-                                        className={`w-full py-3 rounded-xl font-semibold transition-all
-                                        ${
+                                        className="w-full py-3 rounded-xl font-semibold transition-all"
+                                        style={
                                             selectedAnswer !== null
-                                                ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                                : "bg-gray-700 text-gray-500 cursor-not-allowed"
-                                        }`}
+                                                ? { background: "var(--btn-bg)", color: "var(--btn-text)" }
+                                                : {
+                                                      background: "var(--bg-3)",
+                                                      color: "var(--text-3)",
+                                                      cursor: "not-allowed",
+                                                  }
+                                        }
                                     >
                                         답안 제출
                                     </button>
@@ -283,44 +314,47 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
                             {result && (
                                 <div className="text-center py-4">
                                     <div className="text-5xl mb-4">{result.passed ? "🎉" : "😢"}</div>
+                                    {/* 수정: green-400/red-400 → var(--accent)/빨강(예외 유지) */}
                                     <p
-                                        className={`text-lg font-bold mb-4 ${
-                                            result.passed ? "text-green-400" : "text-red-400"
-                                        }`}
+                                        className="text-lg font-bold mb-4"
+                                        style={{ color: result.passed ? "var(--accent)" : "#dc2626" }}
                                     >
                                         {result.message}
                                     </p>
 
                                     {/* 정답 해설 */}
                                     {gateQuestion && (
-                                        <div className="bg-gray-700 rounded-lg p-4 mb-4 text-left">
-                                            <p className="text-xs text-gray-400 mb-1">해설</p>
-                                            <p className="text-sm text-gray-300">{gateQuestion.explanation}</p>
+                                        <div className="bg-[var(--bg-3)] rounded-lg p-4 mb-4 text-left">
+                                            <p className="text-xs text-[var(--text-3)] mb-1">해설</p>
+                                            <p className="text-sm text-[var(--text-2)]">{gateQuestion.explanation}</p>
                                         </div>
                                     )}
 
                                     {result.passed ? (
+                                        // 통과 버튼: 성공 상태를 강조하기 위해 accent(그린)를 진하게 사용
                                         <button
                                             onClick={onClose}
-                                            className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all"
+                                            className="w-full py-3 rounded-xl font-semibold transition-all"
+                                            style={{ background: "var(--accent)", color: "#fff" }}
                                         >
                                             제출하러 가기 →
                                         </button>
                                     ) : attempts < 3 ? (
                                         <button
                                             onClick={fetchGateQuestion}
-                                            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                                            className="w-full py-3 rounded-xl font-semibold transition-all"
+                                            style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
                                         >
                                             다시 시도하기 ({attempts}/3)
                                         </button>
                                     ) : (
                                         <div>
-                                            <p className="text-red-400 text-sm mb-4">
+                                            <p className="text-sm mb-4 text-red-500">
                                                 3회 모두 실패했습니다. 문제를 다시 풀어보세요.
                                             </p>
                                             <button
                                                 onClick={onClose}
-                                                className="w-full py-3 bg-gray-600 text-white rounded-xl font-semibold hover:bg-gray-700 transition-all"
+                                                className="w-full py-3 rounded-xl font-semibold transition-all bg-[var(--bg-3)] text-[var(--text-2)] hover:bg-[var(--bg)]"
                                             >
                                                 돌아가기
                                             </button>

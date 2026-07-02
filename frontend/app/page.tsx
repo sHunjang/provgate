@@ -76,7 +76,7 @@ function HomeContent() {
             return;
         }
 
-        router.push("/problems");
+        router.push("/learn");
     };
 
     // "로그아웃" 버튼 클릭 시 실행 — Supabase 세션 종료 후 홈으로 이동

@@ -30,6 +30,7 @@ type Stats = {
         hint_count: number;
         gate_passed: boolean;
         submitted_at: string;
+        track: string;
     }[];
 };
 
@@ -281,7 +282,7 @@ export default function StatsPage() {
                                 // 인덱스를 key로 써도 실질적인 문제는 없음 (다만 원칙적으론 고유 id가 더 안전)
                                 <div
                                     key={idx}
-                                    onClick={() => router.push(`/problems/${sub.problem_id}`)}
+                                    onClick={() => router.push(`/learn/${sub.track}/${sub.problem_id}`)}
                                     className="flex items-center justify-between p-3 rounded-md cursor-pointer
                                         hover:bg-[var(--bg-3)] transition-colors"
                                 >

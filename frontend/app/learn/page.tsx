@@ -341,7 +341,9 @@ function LearnContent() {
                                         {resumeProblem.problem_type} · {levelBadge[resumeProblem.level].label}
                                     </p>
                                     <button
-                                        onClick={() => router.push(`/problems/${resumeProblem.id}`)}
+                                        // resumeProblem은 activeTrack으로 필터링된 목록에서 나온 값이라
+                                        // activeTrack이 곧 이 문제의 트랙과 동일함
+                                        onClick={() => router.push(`/learn/${activeTrack}/${resumeProblem.id}`)}
                                         className="inline-block text-[10px] rounded px-3 py-1.5"
                                         style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
                                     >
@@ -430,7 +432,7 @@ function LearnContent() {
                                         return (
                                             <button
                                                 key={p.id}
-                                                onClick={() => router.push(`/problems/${p.id}`)}
+                                                onClick={() => router.push(`/learn/${p.track}/${p.id}`)}
                                                 className="flex items-center justify-between px-2 py-2.5 rounded-md hover:bg-[var(--bg-3)] transition-colors text-left"
                                             >
                                                 <div className="flex items-center gap-2">

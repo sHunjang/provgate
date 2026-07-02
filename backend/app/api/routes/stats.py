@@ -143,6 +143,13 @@ async def get_stats(
                 p.title,
                 p.level,
                 p.concept_tag,
+                -- 신규: track 컬럼 추가
+                -- 프론트에서 /learn/[track]/[id]/... 경로로 라우팅하려면
+                -- 어느 트랙 소속 문제인지 알아야 함. 기존엔 level/concept_tag만
+                -- 내려줘서 프론트가 "이 문제가 foundation인지 project인지" 알
+                -- 방법이 없었음 — 그래서 /problems/${id}처럼 트랙 정보 없는
+                -- 구 경로로만 이동시킬 수 있었던 것
+                p.track,
                 s.time_spent_sec,
                 s.hint_count,
                 s.gate_passed,
@@ -150,12 +157,8 @@ async def get_stats(
             FROM submissions s
             JOIN problems p ON s.problem_id = p.id
             WHERE s.user_id = :user_id
-            -- submitted_at이 NULL이면 최종 제출 전 상태이므로 제외
-            -- (게이트만 통과하고 제출 안 한 행도 있을 수 있음)
             AND s.submitted_at IS NOT NULL
-            -- 최신순 정렬
             ORDER BY s.submitted_at DESC
-            -- 최근 5개만
             LIMIT 5
         """),
         {"user_id": user_id}
