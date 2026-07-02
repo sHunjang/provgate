@@ -4,8 +4,9 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 
-import ThemeToggle from "../components/ThemeToggle";
-import { createClient } from "../lib/supabase";
+// import ThemeToggle from "../components/ThemeToggle";
+// import { createClient } from "../lib/supabase";
+import SiteNav, { SiteNavLink } from "../components/SiteNav";
 
 // ============================================================
 // 타입 정의
@@ -57,8 +58,7 @@ function LearnContent() {
 
     const [allProblems, setAllProblems] = useState<Problem[]>([]);
 
-    // 모바일 햄버거 메뉴(홈과 동일한 내비게이션) 열림/닫힘
-    const [menuOpen, setMenuOpen] = useState(false);
+    const learnLinks: SiteNavLink[] = [{ label: "통계", href: "/stats" }];
 
     // 모바일 트랙 선택 드롭다운(첨부 예시처럼 pill 형태) 열림/닫힘
     const [trackDropdownOpen, setTrackDropdownOpen] = useState(false);
@@ -138,12 +138,12 @@ function LearnContent() {
     }, [user?.email, authLoading, router]);
 
     // 로그아웃 핸들러
-    const handleLogout = async () => {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-        setMenuOpen(false);
-        router.push("/");
-    };
+    // const handleLogout = async () => {
+    //     const supabase = createClient();
+    //     await supabase.auth.signOut();
+    //     setMenuOpen(false);
+    //     router.push("/");
+    // };
 
     // ------------------------------------------------------------
     // 파생 데이터 (derived state)
@@ -177,100 +177,10 @@ function LearnContent() {
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* NAV */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6 relative">
-                <button
-                    onClick={() => router.push("/")}
-                    className="font-bold text-sm tracking-tight"
-                >
-                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-                </button>
-
-                {/* 데스크탑 전용 우측 그룹 (기존과 동일) */}
-                <div className="hidden md:flex items-center gap-5">
-                    <span className="text-xs font-medium">학습</span>
-                    <button
-                        onClick={() => router.push("/stats")}
-                        className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
-                    >
-                        통계
-                    </button>
-                    {user ? (
-                        <span className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5">
-                            {user.email?.split("@")[0]}
-                        </span>
-                    ) : (
-                        <button
-                            onClick={() => router.push("/auth/login")}
-                            className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5"
-                        >
-                            로그인
-                        </button>
-                    )}
-                    <ThemeToggle />
-                </div>
-
-                {/* 모바일 전용 그룹 — 홈과 완전히 동일한 패턴 */}
-                <div className="md:hidden flex items-center gap-2">
-                    <ThemeToggle />
-                    <button
-                        onClick={() => setMenuOpen(!menuOpen)}
-                        className="p-1.5 text-[var(--text-2)]"
-                        aria-label="메뉴 열기"
-                    >
-                        <i
-                            className={`ti ${menuOpen ? "ti-x" : "ti-menu-2"}`}
-                            style={{ fontSize: "18px" }}
-                            aria-hidden="true"
-                        />
-                    </button>
-                </div>
-
-                {menuOpen && (
-                    <div className="md:hidden absolute top-14 left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
-                        <button
-                            onClick={() => {
-                                router.push("/");
-                                setMenuOpen(false);
-                            }}
-                            className="text-sm text-left text-[var(--text-2)] py-1.5"
-                        >
-                            홈
-                        </button>
-                        <button
-                            onClick={() => {
-                                router.push("/stats");
-                                setMenuOpen(false);
-                            }}
-                            className="text-sm text-left text-[var(--text-2)] py-1.5"
-                        >
-                            통계
-                        </button>
-                        {user ? (
-                            <>
-                                <span className="text-sm text-[var(--text-2)] py-1.5">{user.email?.split("@")[0]}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="text-sm text-left py-1.5"
-                                    style={{ color: "var(--accent2)" }}
-                                >
-                                    로그아웃
-                                </button>
-                            </>
-                        ) : (
-                            <button
-                                onClick={() => {
-                                    router.push("/auth/login");
-                                    setMenuOpen(false);
-                                }}
-                                className="text-sm text-left text-[var(--text-2)] py-1.5"
-                            >
-                                로그인
-                            </button>
-                        )}
-                    </div>
-                )}
-            </nav>
+            <SiteNav
+                links={learnLinks}
+                activeLabel="학습"
+            />
 
             {/* 사이드바 + 본문 레이아웃 (수정 없음, 기존 그대로) */}
             <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] min-h-[calc(100vh-56px)]">

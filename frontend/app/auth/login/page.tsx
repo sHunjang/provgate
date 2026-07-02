@@ -14,7 +14,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/app/lib/supabase";
 
 // 오늘 리디자인에서 만든 다크/라이트 토글 컴포넌트 재사용
-import ThemeToggle from "@/app/components/ThemeToggle";
+// import ThemeToggle from "@/app/components/ThemeToggle";
+import SiteNav from "@/app/components/SiteNav";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -72,17 +73,8 @@ export default function LoginPage() {
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* NAV — 홈(/), /learn과 동일한 패턴으로 통일 
-                (로고 클릭 시 홈 이동 + 우측 테마 토글) */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
-                <button
-                    onClick={() => router.push("/")}
-                    className="font-bold text-sm tracking-tight"
-                >
-                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-                </button>
-                <ThemeToggle />
-            </nav>
+            
+            <SiteNav />
 
             <div className="flex flex-col items-center justify-center px-6 py-16">
                 {/* max-w-sm: 폼처럼 좁은 콘텐츠는 화면 전체 너비로 늘리지 않고

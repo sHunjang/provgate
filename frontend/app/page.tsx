@@ -6,7 +6,7 @@
 // Suspense: 컴포넌트가 아직 준비 안 됐을 때 "로딩 중" 화면을 보여주는
 //   React 내장 컴포넌트. useSearchParams()가 값을 확정하기 전까지
 //   fallback UI를 보여주는 안전장치로 사용함.
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 
 // useRouter: 페이지 이동(라우팅)을 코드로 실행할 때 사용
 // useSearchParams: 현재 URL의 ?key=value 쿼리 파라미터를 읽는 훅
@@ -18,7 +18,9 @@ import { useAuth } from "./hooks/useAuth";
 // Supabase 클라이언트 생성 함수 - DB/인증 서버와 통신하는 창구
 import { createClient } from "./lib/supabase";
 
-import ThemeToggle from "./components/ThemeToggle";
+// import ThemeToggle from "./components/ThemeToggle";
+
+import SiteNav, { SiteNavLink } from "./components/SiteNav";
 
 // ============================================================
 // HomeContent — 실제 로직이 들어있는 컴포넌트
@@ -34,13 +36,10 @@ function HomeContent() {
     // .get()은 값이 없으면 null 반환 → 조건부 렌더링에 활용
     const needOnboarding = searchParams.get("needOnboarding");
 
-    // ============================================================
-    // 모바일 햄버거 메뉴 열림/닫힘 상태
-    // ============================================================
-    // 데스크탑에서는 항상 링크가 보이지만, 모바일 화면 폭에서는
-    // "문제/통계/로그인/테마토글"을 한 줄에 다 넣을 공간이 없어서
-    // 햄버거 아이콘 뒤에 숨겨뒀다가 탭하면 펼쳐지는 방식으로 전환
-    const [menuOpen, setMenuOpen] = useState(false);
+    const homeLinks: SiteNavLink[] = [
+        { label: "문제", href: "/learn" },
+        { label: "통계", href: "/stats" },
+    ];
 
     // ------------------------------------------------------------
     // 이벤트 핸들러
@@ -80,12 +79,12 @@ function HomeContent() {
     };
 
     // "로그아웃" 버튼 클릭 시 실행 — Supabase 세션 종료 후 홈으로 이동
-    const handleLogout = async () => {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-        setMenuOpen(false);
-        router.push("/");
-    };
+    // const handleLogout = async () => {
+    //     const supabase = createClient();
+    //     await supabase.auth.signOut();
+    //     setMenuOpen(false);
+    //     router.push("/");
+    // };
 
     // ============================================================
     // 학습 트랙 데이터
@@ -128,106 +127,7 @@ function HomeContent() {
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* NAV */}
-            {/* relative 추가: 모바일 드롭다운(absolute)의 기준점이 되기 위함
-    absolute 요소는 가장 가까운 relative 조상을 기준으로 위치가 잡힘 */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6 relative">
-                <div className="font-bold text-sm tracking-tight">
-                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-                </div>
-
-                {/* 데스크탑 전용 링크 그룹 — md 미만에서는 hidden으로 완전히 렌더링 제외 */}
-                <div className="hidden md:flex items-center gap-5">
-                    <button
-                        onClick={() => router.push("/learn")}
-                        className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
-                    >
-                        문제
-                    </button>
-                    <button
-                        onClick={() => router.push("/stats")}
-                        className="text-xs text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
-                    >
-                        통계
-                    </button>
-                    {user ? (
-                        <span className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5">
-                            {user.email?.split("@")[0]}
-                        </span>
-                    ) : (
-                        <button
-                            onClick={() => router.push("/auth/login")}
-                            className="text-xs border border-[var(--border-strong)] bg-[var(--bg-3)] rounded px-3 py-1.5"
-                        >
-                            로그인
-                        </button>
-                    )}
-                    <ThemeToggle />
-                </div>
-
-                {/* 모바일 전용 그룹 — 테마 토글은 항상 보이게, 햄버거는 그 오른쪽에 */}
-                <div className="md:hidden flex items-center gap-2">
-                    <ThemeToggle />
-                    <button
-                        onClick={() => setMenuOpen(!menuOpen)}
-                        className="p-1.5 text-[var(--text-2)]"
-                        aria-label="메뉴 열기"
-                    >
-                        <i
-                            className={`ti ${menuOpen ? "ti-x" : "ti-menu-2"}`}
-                            style={{ fontSize: "18px" }}
-                            aria-hidden="true"
-                        />
-                    </button>
-                </div>
-
-                {/* 모바일 드롭다운 시트 — ThemeToggle 제거(이제 바깥에 항상 있음), 로그아웃 버튼 추가 */}
-                {menuOpen && (
-                    <div className="md:hidden absolute top-14 left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
-                        <button
-                            onClick={() => {
-                                router.push("/learn");
-                                setMenuOpen(false);
-                            }}
-                            className="text-sm text-left text-[var(--text-2)] py-1.5"
-                        >
-                            문제
-                        </button>
-                        <button
-                            onClick={() => {
-                                router.push("/stats");
-                                setMenuOpen(false);
-                            }}
-                            className="text-sm text-left text-[var(--text-2)] py-1.5"
-                        >
-                            통계
-                        </button>
-                        {user ? (
-                            // 로그인 상태: 이메일 표시 + 로그아웃 버튼 둘 다 노출
-                            <>
-                                <span className="text-sm text-[var(--text-2)] py-1.5">{user.email?.split("@")[0]}</span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="text-sm text-left py-1.5"
-                                    style={{ color: "var(--accent2)" }}
-                                >
-                                    로그아웃
-                                </button>
-                            </>
-                        ) : (
-                            <button
-                                onClick={() => {
-                                    router.push("/auth/login");
-                                    setMenuOpen(false);
-                                }}
-                                className="text-sm text-left text-[var(--text-2)] py-1.5"
-                            >
-                                로그인
-                            </button>
-                        )}
-                    </div>
-                )}
-            </nav>
+            <SiteNav links={homeLinks} />
 
             {/* 온보딩 안내 배너 — needOnboarding 쿼리가 있을 때만 표시
                 (이건 원래 폭 제한 없이 배너 형태로 화면 전체를 쓰는 게 맞아서 그대로 둠) */}

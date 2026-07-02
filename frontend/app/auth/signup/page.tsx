@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/app/lib/supabase";
-import ThemeToggle from "@/app/components/ThemeToggle";
+// import ThemeToggle from "@/app/components/ThemeToggle";
+import SiteNav from "@/app/components/SiteNav";
 
 export default function SignupPage() {
     const router = useRouter();
@@ -57,17 +58,17 @@ export default function SignupPage() {
     // 코드를 두 번 복붙하는 대신 작은 함수로 빼서 재사용
     // (컴포넌트 안에 컴포넌트를 정의하는 패턴 — 파일을 분리할 정도로
     //  크지 않은, 이 파일 안에서만 쓰이는 조각일 때 흔히 사용)
-    const Nav = () => (
-        <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
-            <button
-                onClick={() => router.push("/")}
-                className="font-bold text-sm tracking-tight"
-            >
-                Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-            </button>
-            <ThemeToggle />
-        </nav>
-    );
+    // const Nav = () => (
+    //     <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
+    //         <button
+    //             onClick={() => router.push("/")}
+    //             className="font-bold text-sm tracking-tight"
+    //         >
+    //             Prov<span style={{ color: "var(--accent)" }}>Gate</span>
+    //         </button>
+    //         <ThemeToggle />
+    //     </nav>
+    // );
 
     // ------------------------------------------------------------
     // 회원가입 완료 → 이메일 인증 안내 화면
@@ -77,7 +78,7 @@ export default function SignupPage() {
     if (isSignedUp) {
         return (
             <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-                <Nav />
+                <SiteNav />
                 <div className="flex flex-col items-center justify-center px-6 py-16">
                     <div className="w-full max-w-sm">
                         <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-7 text-center">
@@ -151,7 +152,7 @@ export default function SignupPage() {
     // ------------------------------------------------------------
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            <Nav />
+            <SiteNav />
             <div className="flex flex-col items-center justify-center px-6 py-16">
                 <div className="w-full max-w-sm">
                     <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-7">

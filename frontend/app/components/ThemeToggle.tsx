@@ -1,11 +1,29 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 // useTheme: 커스텀 훅
 // 현재 테마 상태(isDark)와 토글 함수(toggleTheme)를 제공
 import { useTheme } from "../hooks/useTheme";
 
 export default function ThemeToggle() {
     const { isDark, toggleTheme } = useTheme();
+
+    // ============================================================
+    // 신규: mounted 플래그 — "마운트 후에만 진짜 값 보여주기" 패턴
+    // ============================================================
+    // false일 때는 서버가 그린 것과 100% 동일한 내용(항상 다크 기준)을
+    // 그대로 유지 → 하이드레이션 시점엔 서버=클라이언트라 에러가 안 남
+    // true로 바뀌는 순간(useEffect는 항상 클라이언트에서만 실행되므로
+    // "마운트 완료 = 브라우저에서 실제로 그려짐"을 의미)에만
+    // 리렌더링되면서 진짜 isDark 값으로 자연스럽게 전환됨
+    // (suppressHydrationWarning처럼 "텍스트가 얼어붙는" 부작용이 없음)
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
+    // 마운트 전(=서버 렌더링 시점과 동일한 첫 클라이언트 렌더링)에는
+    // layout.tsx의 기본값(항상 다크)과 일치하는 내용을 그대로 보여줌
+    const displayIsDark = mounted ? isDark : true;
 
     return (
         <button
@@ -33,10 +51,8 @@ export default function ThemeToggle() {
                 bg-[var(--bg-3)] border-[var(--border-strong)] text-[var(--text-2)]
                 hover:bg-[var(--bg)]"
         >
-            {/* isDark는 여전히 JS 상태값이라 아이콘/텍스트 전환에는 그대로 사용
-                (색상만 CSS 변수로 옮기고, 아이콘·문구 전환 로직은 그대로 유지) */}
-            <span>{isDark ? "🌙" : "☀️"}</span>
-            <span>{isDark ? "다크" : "라이트"}</span>
+            <span>{displayIsDark ? "🌙" : "☀️"}</span>
+            <span>{displayIsDark ? "다크" : "라이트"}</span>
         </button>
     );
 }

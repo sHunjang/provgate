@@ -70,23 +70,39 @@ export default function ProblemPage() {
     const { user } = useAuth();
 
     const [problem, setProblem] = useState<Problem | null>(null);
+
     const [code, setCode] = useState("");
+
     const [testResult, setTestResult] = useState<TestResult | null>(null);
+
     const [running, setRunning] = useState(false);
+
     const [loading, setLoading] = useState(true);
+
     const [hintStep, setHintStep] = useState(0);
+
     const [hintLoading, setHintLoading] = useState(false);
+
     const [aiHint, setAiHint] = useState<string | null>(null);
+
     const [gateOpen, setGateOpen] = useState(false);
+
     const [gateToken, setGateToken] = useState<string | null>(null);
+
     const [showGateChoice, setShowGateChoice] = useState(false);
+
     const [skipGate, setSkipGate] = useState(false);
+
     const [aiAnswers, setAiAnswers] = useState<number[] | null>(null);
+
     const [conditionsSubmitted, setConditionsSubmitted] = useState(false);
+
     const [selectedLanguage, setSelectedLanguage] = useState<"python" | "javascript">("python");
 
     const { formattedTime, elapsed, isVisible, toggleVisibility } = useTimer();
+
     const { loading: pyodideLoading, error: pyodideError, runCode } = usePyodide();
+
     const { runCode: runJsCode } = useJavaScript();
 
     const needsCodeExecution =
@@ -353,7 +369,7 @@ export default function ProblemPage() {
                             onClick={async () => {
                                 const supabase = createClient();
                                 await supabase.auth.signOut();
-                                router.push("/auth/login");
+                                router.push("/");
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium
                                 border border-[var(--border-strong)] bg-[var(--bg-3)] text-[var(--text-2)]

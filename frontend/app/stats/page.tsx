@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import { createClient } from "@/app/lib/supabase";
-import ThemeToggle from "@/app/components/ThemeToggle";
+// import ThemeToggle from "@/app/components/ThemeToggle";
+import SiteNav from "../components/SiteNav";
 
 // ============================================================
 // 타입 정의
@@ -155,25 +156,7 @@ export default function StatsPage() {
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* NAV — 다른 리디자인 페이지들과 동일한 패턴 */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
-                <button
-                    onClick={() => router.push("/")}
-                    className="font-bold text-sm tracking-tight"
-                >
-                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-                </button>
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => router.push("/learn")}
-                        className="text-xs font-medium rounded px-4 py-2 transition-opacity hover:opacity-90"
-                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
-                    >
-                        문제 풀러 가기 →
-                    </button>
-                    <ThemeToggle />
-                </div>
-            </nav>
+            <SiteNav primaryAction={{ label: "문제", href: "/learn" }} />
 
             <div className="max-w-3xl mx-auto px-6 py-8">
                 <div className="mb-6">

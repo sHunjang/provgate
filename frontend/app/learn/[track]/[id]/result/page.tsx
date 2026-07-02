@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
-import ThemeToggle from "@/app/components/ThemeToggle";
+// import ThemeToggle from "@/app/components/ThemeToggle";
+import SiteNav from "@/app/components/SiteNav";
 
 type SimilarProblem = {
     id: string;
@@ -95,16 +96,7 @@ export default function FeedbackPage() {
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* NAV — 다른 리디자인 페이지들과 동일한 패턴 */}
-            <nav className="h-14 border-b border-[var(--border-c)] bg-[var(--bg-2)] flex items-center justify-between px-6">
-                <button
-                    onClick={() => router.push("/")}
-                    className="font-bold text-sm tracking-tight"
-                >
-                    Prov<span style={{ color: "var(--accent)" }}>Gate</span>
-                </button>
-                <ThemeToggle />
-            </nav>
+            <SiteNav />
 
             <div className="max-w-2xl mx-auto px-6 py-10">
                 {/* 헤더 */}
