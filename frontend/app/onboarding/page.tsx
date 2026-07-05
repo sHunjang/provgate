@@ -5,61 +5,38 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import SiteNav from "@/app/components/SiteNav";
 
-// 수준 타입 정의 - TypeScript의 유니온 타입
-// 이 3가지 문자열만 허용, 오타 방지
-type Level = "beginner" | "intermediate" | "advanced";
+// 신규: 공통 레벨 매핑 사용
+// 기존엔 이 파일 안에 levels 배열을 직접 정의했었는데,
+// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+import { LEVEL_META, LEVEL_ORDER, type Level } from "@/app/lib/levelMeta";
 
-// 수준 카드 데이터 - 배열로 관리하면 UI 추가/수정이 쉬움
-// 원래 홈 화면에 있던 levels 배열을 그대로 옮겨오되, 색상만 새 팔레트로 교체
-const levels: {
-    id: Level;
-    title: string;
-    description: string;
-    icon: string;
-    dot: string;
-    bg: string;
-}[] = [
-    {
-        id: "beginner",
-        title: "입문자",
-        description: "파이썬을 처음 배우거나\n기초 문법을 막 익힌 단계",
-        icon: "🌱",
-        dot: "var(--accent)",
-        bg: "var(--accent-bg)",
-    },
-    {
-        id: "intermediate",
-        title: "초급자",
-        description: "변수, 조건문, 반복문을 알고\n함수와 리스트를 다룰 수 있는 단계",
-        icon: "🔥",
-        dot: "var(--accent2)",
-        bg: "var(--accent2-bg)",
-    },
-    {
-        id: "advanced",
-        title: "중급자",
-        description: "클래스, 재귀, 알고리즘 기초를 알고\n실무 경험이 있는 단계",
-        icon: "⚡️",
-        dot: "var(--accent3)",
-        bg: "var(--accent3-bg)",
-    },
-];
+// 레벨별 아이콘은 이 페이지(카드 UI)에서만 쓰는 시각 요소라
+// levelMeta.ts로 옮기지 않고 여기 로컬로 둠
+// (levelMeta는 "이름/색"처럼 여러 페이지가 공유하는 것만 담당)
+const levelIcon: Record<Level, string> = {
+    beginner: "🌱",
+    intermediate: "🔥",
+    advanced: "⚡️",
+};
+
+// 레벨별 설명 문구도 이 페이지 전용이라 로컬로 유지
+const levelDescription: Record<Level, string> = {
+    beginner: "파이썬을 처음 배우거나\n기초 문법을 막 익힌 단계",
+    intermediate: "변수, 조건문, 반복문을 알고\n함수와 리스트를 다룰 수 있는 단계",
+    advanced: "클래스, 재귀, 알고리즘 기초를 알고\n실무 경험이 있는 단계",
+};
 
 export default function OnboardingLevelSelectPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
 
-    // 선택한 수준 상태 - null이면 아직 아무것도 선택 안 함
     const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
 
-    // 진단 시작 버튼 클릭
     const handleStart = () => {
         if (!selectedLevel) return;
         router.push(`/onboarding/quiz?level=${selectedLevel}`);
     };
 
-    // 인증 확인이 끝났는데 비로그인 상태면 로그인 페이지로
-    // (진단 결과 저장에 user_id가 필요하므로, 이 단계에서 미리 걸러줌)
     if (!authLoading && !user) {
         router.push("/auth/login");
         return null;
@@ -76,26 +53,35 @@ export default function OnboardingLevelSelectPage() {
                     <p className="text-sm text-[var(--text-2)]">선택한 수준에 맞춰 AI가 진단 문제를 생성해요</p>
                 </div>
 
-                {/* 수준 카드 3개 */}
+                {/* 수준 카드 3개 — LEVEL_ORDER로 순회하며 LEVEL_META에서 라벨/색 조회 */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
-                    {levels.map((level) => (
-                        <button
-                            key={level.id}
-                            onClick={() => setSelectedLevel(level.id)}
-                            className="p-5 rounded-md border-2 text-left transition-all"
-                            style={
-                                selectedLevel === level.id
-                                    ? { borderColor: level.dot, background: level.bg }
-                                    : { borderColor: "var(--border-c)", background: "var(--bg-2)" }
-                            }
-                        >
-                            <div className="text-3xl mb-3">{level.icon}</div>
-                            <h3 className="text-sm font-bold mb-1.5">{level.title}</h3>
-                            <p className="text-xs text-[var(--text-2)] whitespace-pre-line leading-relaxed">
-                                {level.description}
-                            </p>
-                        </button>
-                    ))}
+                    {/* 선택 시 배경을 meta.bg(레벨별 농도)로 바꾸던 것 →
+                        배경은 항상 옅은 톤(level-1-bg, 즉 '기초 이해'와 동일)으로 통일하고
+                        테두리 색만 meta.fg로 다르게 줌.
+                        이유: advanced(level-3-bg)가 진한 초록이라 회색 설명 텍스트와
+                        대비가 안 나와서 안 읽히는 문제가 있었음. 배경을 통일하면
+                        텍스트 색을 레벨마다 따로 신경 쓸 필요 없이 항상 가독성이 보장됨 */}
+                    {LEVEL_ORDER.map((level) => {
+                        const meta = LEVEL_META[level];
+                        return (
+                            <button
+                                key={level}
+                                onClick={() => setSelectedLevel(level)}
+                                className="p-5 rounded-md border-2 text-left transition-all"
+                                style={
+                                    selectedLevel === level
+                                        ? { borderColor: meta.line, background: "var(--level-1-bg)" }
+                                        : { borderColor: "var(--border-c)", background: "var(--bg-2)" }
+                                }
+                            >
+                                <div className="text-3xl mb-3">{levelIcon[level]}</div>
+                                <h3 className="text-sm font-bold mb-1.5">{meta.label}</h3>
+                                <p className="text-xs text-[var(--text-2)] whitespace-pre-line leading-relaxed">
+                                    {levelDescription[level]}
+                                </p>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* 진단 시작하기 버튼 */}

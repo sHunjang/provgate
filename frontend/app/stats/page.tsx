@@ -4,8 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/hooks/useAuth";
 import { createClient } from "@/app/lib/supabase";
-// import ThemeToggle from "@/app/components/ThemeToggle";
 import SiteNav from "../components/SiteNav";
+
+// 신규: 공통 레벨 매핑 사용
+// 기존엔 이 파일 안에 levelLabel/levelColorVar 딕셔너리를 직접 정의했었는데,
+// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
 
 // ============================================================
 // 타입 정의
@@ -35,24 +39,7 @@ type Stats = {
     }[];
 };
 
-const levelLabel: Record<string, string> = {
-    beginner: "입문자",
-    intermediate: "초급자",
-    advanced: "중급자",
-};
-
-// ============================================================
-// 신규: 난이도별 색상을 CSS 변수로 통일
-// ============================================================
-// 기존엔 text-green-400 같은 Tailwind 고정 색이었는데,
-// /learn 페이지에서 이미 확립한 매핑(입문=accent/초급=accent2/중급=accent3)을
-// 그대로 재사용해서 "앱 전체에서 같은 난이도는 같은 색"이라는
-// 시각적 일관성을 만듦 (사용자가 색만 보고도 난이도를 학습하게 됨)
-const levelColorVar: Record<string, string> = {
-    beginner: "var(--accent)",
-    intermediate: "var(--accent2)",
-    advanced: "var(--accent3)",
-};
+// 삭제: levelLabel, levelColorVar 딕셔너리 — 이제 LEVEL_META로 대체됨
 
 // 초 → MM:SS 형식으로 변환
 // Math.floor로 정수 분(minute)만 추출, % 연산자로 나머지 초(second)를 구함
@@ -186,41 +173,60 @@ export default function StatsPage() {
                     </p>
                 </div>
 
-                {/* 난이도별 완료 현황 */}
+                {/* ============================================================
+                    난이도별 완료 현황
+                    ============================================================
+                    수정: levelLabel/levelColorVar → LEVEL_META 기반
+                    주의: 이 카드는 배경이 항상 중립(bg-2)이고 텍스트/진행바만
+                    색을 입히는 구조라, LEVEL_META[...].fg(진한 배경 위 흰 글씨용)를
+                    그대로 쓰면 advanced 라벨이 흰 글씨로 나와 안 보이는 문제가 생김.
+                    그래서 온보딩 카드 테두리에 썼던 meta.line(중립 배경 위에서도
+                    항상 또렷한 진하기 색상)을 여기서도 재사용함 */}
                 <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[
-                        { key: "beginner", count: stats.beginner_completed, total: stats.beginner_total },
-                        { key: "intermediate", count: stats.intermediate_completed, total: stats.intermediate_total },
-                        { key: "advanced", count: stats.advanced_completed, total: stats.advanced_total },
-                    ].map(({ key, count, total }) => (
-                        <div
-                            key={key}
-                            className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center"
-                        >
-                            <p
-                                className="text-xs font-medium mb-2"
-                                style={{ color: levelColorVar[key] }}
+                    {(["beginner", "intermediate", "advanced"] as Level[]).map((key) => {
+                        const meta = LEVEL_META[key];
+                        const count =
+                            key === "beginner"
+                                ? stats.beginner_completed
+                                : key === "intermediate"
+                                  ? stats.intermediate_completed
+                                  : stats.advanced_completed;
+                        const total =
+                            key === "beginner"
+                                ? stats.beginner_total
+                                : key === "intermediate"
+                                  ? stats.intermediate_total
+                                  : stats.advanced_total;
+                        return (
+                            <div
+                                key={key}
+                                className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center"
                             >
-                                {levelLabel[key]}
-                            </p>
-                            <p className="text-2xl font-bold tracking-tight mb-1">
-                                {count}
-                                <span className="text-sm font-medium text-[var(--text-3)]">/{total}</span>
-                            </p>
-                            <div className="w-full h-1 rounded-full bg-[var(--border-c)] mt-2">
-                                <div
-                                    className="h-1 rounded-full transition-all duration-500"
-                                    style={{
-                                        width: `${total > 0 ? Math.round((count / total) * 100) : 0}%`,
-                                        background: levelColorVar[key],
-                                    }}
-                                />
+                                <p
+                                    className="text-xs font-medium mb-2"
+                                    style={{ color: meta.line }}
+                                >
+                                    {meta.label}
+                                </p>
+                                <p className="text-2xl font-bold tracking-tight mb-1">
+                                    {count}
+                                    <span className="text-sm font-medium text-[var(--text-3)]">/{total}</span>
+                                </p>
+                                <div className="w-full h-1 rounded-full bg-[var(--border-c)] mt-2">
+                                    <div
+                                        className="h-1 rounded-full transition-all duration-500"
+                                        style={{
+                                            width: `${total > 0 ? Math.round((count / total) * 100) : 0}%`,
+                                            background: meta.line,
+                                        }}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
-                {/* 요약 통계 3종 */}
+                {/* 요약 통계 3종 (레벨과 무관, 수정 없음) */}
                 <div className="grid grid-cols-3 gap-3 mb-4">
                     <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-4 text-center">
                         <p className="text-[10px] text-[var(--text-3)] mb-1.5">평균 풀이 시간</p>
@@ -281,11 +287,14 @@ export default function StatsPage() {
                                         />
                                         <div>
                                             <p className="text-xs font-medium">{displayTitle(sub.title)}</p>
+                                            {/* 수정: levelLabel[sub.level]/levelColorVar[sub.level]
+                                                → LEVEL_META[...].label / .line
+                                                (여기도 중립 배경 위 텍스트라 line 색상 사용) */}
                                             <p
                                                 className="text-[10px] mt-0.5"
-                                                style={{ color: levelColorVar[sub.level] }}
+                                                style={{ color: LEVEL_META[sub.level as Level].line }}
                                             >
-                                                {levelLabel[sub.level]} · {sub.concept_tag}
+                                                {LEVEL_META[sub.level as Level].label} · {sub.concept_tag}
                                             </p>
                                         </div>
                                     </div>
