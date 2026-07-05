@@ -4,9 +4,12 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 
-// import ThemeToggle from "../components/ThemeToggle";
-// import { createClient } from "../lib/supabase";
 import SiteNav, { SiteNavLink } from "../components/SiteNav";
+
+// 신규: 공통 레벨 매핑 사용
+// 기존엔 이 파일 안에 LEVEL_FILTERS/levelBadge를 직접 정의했었는데,
+// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+import { LEVEL_META, LEVEL_ORDER, type Level } from "../lib/levelMeta";
 
 // ============================================================
 // 타입 정의
@@ -34,18 +37,16 @@ const TRACKS = [
     { slug: "ai_generated", name: "AI 추천 문제", color: "var(--text-2)" },
 ] as const;
 
+// 신규: 필터 pill 목록 — "전체"는 레벨이 아니라 필터 옵션이라
+// LEVEL_ORDER와 별개로 앞에 붙임. 나머지 3개는 LEVEL_ORDER를 순회하며
+// LEVEL_META의 shortLabel(기초/응용/심화)을 그대로 사용
+// (기존엔 "입문/초급/중급"을 이 파일 안에 직접 하드코딩했었음)
 const LEVEL_FILTERS = [
     { value: "all", label: "전체" },
-    { value: "beginner", label: "입문" },
-    { value: "intermediate", label: "초급" },
-    { value: "advanced", label: "중급" },
-] as const;
+    ...LEVEL_ORDER.map((level) => ({ value: level as string, label: LEVEL_META[level].shortLabel })),
+];
 
-const levelBadge: Record<string, { bg: string; fg: string; label: string }> = {
-    beginner: { bg: "var(--accent-bg)", fg: "var(--accent)", label: "입문" },
-    intermediate: { bg: "var(--accent2-bg)", fg: "var(--accent2)", label: "초급" },
-    advanced: { bg: "var(--accent3-bg)", fg: "var(--accent3)", label: "중급" },
-};
+// 삭제: levelBadge 딕셔너리 — 이제 LEVEL_META로 대체됨
 
 // ============================================================
 // LearnContent — 실제 로직이 들어있는 컴포넌트
@@ -136,14 +137,6 @@ function LearnContent() {
 
         initialize();
     }, [user?.email, authLoading, router]);
-
-    // 로그아웃 핸들러
-    // const handleLogout = async () => {
-    //     const supabase = createClient();
-    //     await supabase.auth.signOut();
-    //     setMenuOpen(false);
-    //     router.push("/");
-    // };
 
     // ------------------------------------------------------------
     // 파생 데이터 (derived state)
@@ -247,8 +240,10 @@ function LearnContent() {
                                         이어하기
                                     </p>
                                     <p className="text-xs font-bold mb-0.5">{resumeProblem.title}</p>
+                                    {/* 수정: levelBadge[...].label → LEVEL_META[...].shortLabel */}
                                     <p className="text-[10px] text-[var(--text-2)] mb-2">
-                                        {resumeProblem.problem_type} · {levelBadge[resumeProblem.level].label}
+                                        {resumeProblem.problem_type} ·{" "}
+                                        {LEVEL_META[resumeProblem.level as Level].shortLabel}
                                     </p>
                                     <button
                                         // resumeProblem은 activeTrack으로 필터링된 목록에서 나온 값이라
@@ -263,9 +258,9 @@ function LearnContent() {
                             )}
 
                             {/* ============================================================
-                                수정: 리스트 헤더
-                                - 데스크탑: 기존처럼 고정 텍스트 h1 (hidden md:block 추가)
-                                - 모바일: 첨부 예시처럼 "트랙명 ∨" pill 버튼 + 드롭다운 신규 추가
+                                리스트 헤더
+                                - 데스크탑: 기존처럼 고정 텍스트 h1 (hidden md:block)
+                                - 모바일: "트랙명 ∨" pill 버튼 + 드롭다운
                                 ============================================================ */}
                             <div className="flex items-center justify-between mb-3 relative">
                                 {/* 데스크탑 전용 고정 타이틀 */}
@@ -311,7 +306,8 @@ function LearnContent() {
                                     )}
                                 </div>
 
-                                {/* 난이도 필터 pill (수정 없음, 기존 그대로) */}
+                                {/* 난이도 필터 pill — LEVEL_FILTERS가 이제 LEVEL_META 기반이라
+                                    이 렌더링 코드 자체는 수정 없이 그대로 재사용 가능 */}
                                 <div className="flex gap-1">
                                     {LEVEL_FILTERS.map((f) => (
                                         <button
@@ -337,7 +333,8 @@ function LearnContent() {
                             ) : (
                                 <div className="flex flex-col gap-0.5">
                                     {filteredProblems.map((p) => {
-                                        const badge = levelBadge[p.level];
+                                        // 수정: levelBadge[p.level] → LEVEL_META[p.level as Level]
+                                        const badge = LEVEL_META[p.level as Level];
                                         const trackMeta = TRACKS.find((t) => t.slug === p.track);
                                         return (
                                             <button
@@ -363,11 +360,12 @@ function LearnContent() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
+                                                    {/* 수정: badge.label → badge.shortLabel (기초/응용/심화) */}
                                                     <span
                                                         className="text-[9px] rounded px-1.5 py-0.5"
                                                         style={{ background: badge.bg, color: badge.fg }}
                                                     >
-                                                        {badge.label}
+                                                        {badge.shortLabel}
                                                     </span>
                                                     {p.status === "completed" ? (
                                                         <span

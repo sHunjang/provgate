@@ -16,6 +16,11 @@ import AIDebuggingSection from "@/app/components/AIDebuggingSection";
 import AIQuestionSection from "@/app/components/AIQuestionSection";
 import DesignImplementationSection from "@/app/components/DesignImplementationSection";
 
+// 신규: 공통 레벨 매핑 사용
+// 기존엔 이 파일 안에 levelColor 딕셔너리를 직접 정의했었는데,
+// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
+
 type TestCase = { input: string; output: string };
 
 type Problem = {
@@ -42,16 +47,7 @@ type TestResult = {
     results?: { passed: boolean; output: string; expected: string; message: string }[];
 };
 
-// ============================================================
-// 난이도별 배지 색상을 CSS 변수로 통일
-// ============================================================
-// /learn, /stats에서 이미 쓰던 매핑(입문=accent/초급=accent2/중급=accent3)을
-// 그대로 재사용해서 앱 전체에서 "같은 난이도 = 같은 색" 규칙을 지킴
-const levelColor: Record<string, { bg: string; fg: string; label: string }> = {
-    beginner: { bg: "var(--accent-bg)", fg: "var(--accent)", label: "입문자" },
-    intermediate: { bg: "var(--accent2-bg)", fg: "var(--accent2)", label: "초급자" },
-    advanced: { bg: "var(--accent3-bg)", fg: "var(--accent3)", label: "중급자" },
-};
+// 삭제: levelColor 딕셔너리 — 이제 LEVEL_META로 대체됨
 
 // 문제 유형별 배지 — 팔레트 3색을 순환 재사용 (팔레트 외 색을 새로 만들지 않기 위함)
 const typeColor: Record<string, { bg: string; fg: string; label: string }> = {
@@ -251,12 +247,12 @@ export default function ProblemPage() {
         );
     }
 
-    const lvl = levelColor[problem.level];
+    // 수정: levelColor[problem.level] → LEVEL_META[problem.level as Level]
+    const lvl = LEVEL_META[problem.level as Level];
     const typ = typeColor[problem.problem_type];
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
-            {/* ===== 상단 헤더 ===== */}
             {/* ===== 상단 헤더 ===== */}
             {/* 수정: relative 추가 (모바일 드롭다운의 기준점) */}
             <header className="border-b border-[var(--border-c)] px-6 py-4 flex items-center justify-between bg-[var(--bg-2)] relative">
@@ -269,7 +265,7 @@ export default function ProblemPage() {
                         ← 목록
                     </button>
                     {/* min-w-0 + truncate: 제목이 길 때 줄바꿈 대신 말줄임표로 잘리게 함
-            (모바일 좁은 화면에서 제목이 여러 줄로 밀리는 걸 방지) */}
+                        (모바일 좁은 화면에서 제목이 여러 줄로 밀리는 걸 방지) */}
                     <div className="min-w-0">
                         <span
                             className="text-xs font-medium uppercase"
@@ -282,8 +278,8 @@ export default function ProblemPage() {
                 </div>
 
                 {/* ============================================================
-        데스크탑 전용: 언어선택 + 환경상태 + 타이머
-        ============================================================ */}
+                    데스크탑 전용: 언어선택 + 환경상태 + 타이머
+                    ============================================================ */}
                 <div className="hidden md:flex items-center gap-4">
                     {needsCodeExecution && (
                         <div className="flex items-center gap-2 bg-[var(--bg-3)] rounded-lg p-1">
@@ -372,8 +368,8 @@ export default function ProblemPage() {
                 </div>
 
                 {/* ============================================================
-        데스크탑 전용: 유저 + 로그아웃 + 테마
-        ============================================================ */}
+                    데스크탑 전용: 유저 + 로그아웃 + 테마
+                    ============================================================ */}
                 <div className="hidden md:flex items-center gap-2">
                     {user && (
                         <span className="text-xs text-[var(--text-3)] hidden sm:block">
@@ -388,8 +384,8 @@ export default function ProblemPage() {
                                 router.push("/");
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium
-                    border border-[var(--border-strong)] bg-[var(--bg-3)] text-[var(--text-2)]
-                    hover:bg-[var(--bg)] transition-all"
+                                border border-[var(--border-strong)] bg-[var(--bg-3)] text-[var(--text-2)]
+                                hover:bg-[var(--bg)] transition-all"
                         >
                             로그아웃
                         </button>
@@ -398,10 +394,10 @@ export default function ProblemPage() {
                 </div>
 
                 {/* ============================================================
-        신규: 모바일 전용 — 테마 토글 + 햄버거만 표시
-        (SiteNav의 모바일 그룹과 동일한 패턴: 테마는 항상 보이게,
-         나머지는 햄버거 뒤로 숨김)
-        ============================================================ */}
+                    신규: 모바일 전용 — 테마 토글 + 햄버거만 표시
+                    (SiteNav의 모바일 그룹과 동일한 패턴: 테마는 항상 보이게,
+                     나머지는 햄버거 뒤로 숨김)
+                    ============================================================ */}
                 <div className="md:hidden flex items-center gap-2 flex-shrink-0">
                     <ThemeToggle />
                     <button
@@ -543,6 +539,8 @@ export default function ProblemPage() {
                 {/* ===== 왼쪽: 문제 설명 ===== */}
                 <div className="w-full md:w-1/2 border-r border-[var(--border-c)] p-6 overflow-y-auto bg-[var(--bg-3)]">
                     <div className="flex items-center gap-2 flex-wrap">
+                        {/* lvl.label / lvl.bg / lvl.fg 는 LEVEL_META도 동일한 필드명을
+                            갖고 있어서 JSX 자체는 수정 없이 그대로 재사용 가능 */}
                         <span
                             className="text-xs px-2 py-1 rounded-full font-medium"
                             style={{ background: lvl.bg, color: lvl.fg }}

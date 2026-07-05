@@ -16,6 +16,11 @@ import { useAuth } from "@/app/hooks/useAuth";
 // 신규: 사이트 공통 네비게이션
 import SiteNav from "@/app/components/SiteNav";
 
+// 신규: 공통 레벨 매핑 사용
+// 기존엔 이 파일 안에 levelLabel/levelColorVar 딕셔너리를 직접 정의했었는데,
+// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
+
 // 온보딩 완료 결과 타입 정의
 type OnboardingResult = {
     email: string;
@@ -40,12 +45,7 @@ type Question = {
     explanation: string;
 };
 
-// 수준 한글 변환 - 딕셔너리로 O(1) 조회
-const levelLabel: Record<string, string> = {
-    beginner: "입문자",
-    intermediate: "초급자",
-    advanced: "중급자",
-};
+// 삭제: levelLabel 딕셔너리 — 이제 LEVEL_META로 대체됨
 
 function ResultContent() {
     const searchParams = useSearchParams();
@@ -125,9 +125,6 @@ function ResultContent() {
     }, [user, authLoading, answers, correctAnswers, level]);
 
     // 로딩 화면 - user 로딩 중일 때도 표시
-    // 수정: 배경/텍스트 CSS 변수화 + SiteNav 추가 + 회전 스피너 추가
-    // (quiz 페이지 로딩 화면과 동일한 스피너 패턴 재사용 —
-    //  "사이트가 멈춘 것처럼 보인다"는 피드백 반영)
     if (loading) {
         return (
             <main className="min-h-screen bg-[var(--bg)]">
@@ -149,7 +146,6 @@ function ResultContent() {
     }
 
     // 에러 화면
-    // 수정: 배경/텍스트 CSS 변수화 + SiteNav 추가, 버튼 indigo → var(--btn-bg)
     if (error) {
         return (
             <main className="min-h-screen bg-[var(--bg)]">
@@ -178,6 +174,13 @@ function ResultContent() {
     const levelUp = confirmedIdx > declaredIdx;
     const levelDown = confirmedIdx < declaredIdx;
 
+    // 신규: confirmed_level에 해당하는 레벨 메타 정보를 미리 꺼내둠
+    // (타입 캐스팅 as Level: result의 confirmed_level은 API에서 string으로
+    //  오지만, 실제 값은 항상 "beginner"|"intermediate"|"advanced" 중 하나임을
+    //  우리가 알고 있으므로 안전하게 Level 타입으로 좁혀서 LEVEL_META 조회에 사용)
+    const confirmedMeta = LEVEL_META[result!.confirmed_level as Level];
+    const declaredMeta = LEVEL_META[result!.declared_level as Level];
+
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
             {/* 신규: SiteNav */}
@@ -186,7 +189,6 @@ function ResultContent() {
             <div className="flex flex-col items-center px-6 py-10">
                 <div className="w-full max-w-2xl">
                     {/* 점수 카드 */}
-                    {/* 수정: bg-white dark:bg-gray-800 → var(--bg-2) */}
                     <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-8 mb-6 text-center">
                         <div className="text-5xl mb-4">
                             {result!.ratio >= 80 ? "🎉" : result!.ratio >= 40 ? "👍" : "💪"}
@@ -203,42 +205,64 @@ function ResultContent() {
                             정답 ({result!.ratio}%)
                         </p>
 
-                        {/* 수준 확정 결과 */}
-                        {/* 수정: bg-indigo-50 → var(--accent-bg), text-indigo-700 → var(--accent) */}
+                        {/* ============================================================
+                            수준 확정 결과
+                            수정: bg-indigo-50/text-indigo-700 하드코딩 → LEVEL_META 기반
+                            - 배경: confirmedMeta.bg (레벨별 옅은~진한 그린 농도)
+                            - 레벨명: LEVEL_META[...].label ("입문자" 등 → "기초 이해" 등)
+                            - 안내 문구 색: 기존엔 text-[var(--text-3)](고정 회색)이었는데,
+                              advanced일 때 배경이 진한 초록이라 회색 글씨가 안 보이는
+                              문제가 있었음. confirmedMeta.fg를 그대로 쓰되 살짝
+                              투명도(opacity)를 줘서, "레벨 텍스트보다는 옅지만
+                              배경 위에서 항상 읽히는" 안내 문구로 만듦
+                            ============================================================ */}
                         <div
                             className="rounded-md p-4"
-                            style={{ background: "var(--accent-bg)" }}
+                            style={{ background: confirmedMeta.bg }}
                         >
                             {levelUp ? (
                                 <>
-                                    <p className="text-xs text-[var(--text-3)] mb-1">
+                                    <p
+                                        className="text-xs mb-1"
+                                        style={{ color: confirmedMeta.fg, opacity: 0.75 }}
+                                    >
                                         선택하신 수준보다 실력이 더 높으시네요! 🚀
                                     </p>
                                     <p
                                         className="text-base font-bold"
-                                        style={{ color: "var(--accent)" }}
+                                        style={{ color: confirmedMeta.fg }}
                                     >
-                                        {levelLabel[result!.declared_level]} → {levelLabel[result!.confirmed_level]}
+                                        {declaredMeta.label} → {confirmedMeta.label}
                                     </p>
                                 </>
                             ) : levelDown ? (
                                 <>
-                                    <p className="text-xs text-[var(--text-3)] mb-1">조금 더 기초부터 다져보아요! 💪</p>
+                                    <p
+                                        className="text-xs mb-1"
+                                        style={{ color: confirmedMeta.fg, opacity: 0.75 }}
+                                    >
+                                        조금 더 기초부터 다져보아요! 💪
+                                    </p>
                                     <p
                                         className="text-base font-bold"
-                                        style={{ color: "var(--accent)" }}
+                                        style={{ color: confirmedMeta.fg }}
                                     >
-                                        {levelLabel[result!.declared_level]} → {levelLabel[result!.confirmed_level]}
+                                        {declaredMeta.label} → {confirmedMeta.label}
                                     </p>
                                 </>
                             ) : (
                                 <>
-                                    <p className="text-xs text-[var(--text-3)] mb-1">확정된 학습 수준</p>
+                                    <p
+                                        className="text-xs mb-1"
+                                        style={{ color: confirmedMeta.fg, opacity: 0.75 }}
+                                    >
+                                        확정된 학습 수준
+                                    </p>
                                     <p
                                         className="text-base font-bold"
-                                        style={{ color: "var(--accent)" }}
+                                        style={{ color: confirmedMeta.fg }}
                                     >
-                                        {levelLabel[result!.confirmed_level]}
+                                        {confirmedMeta.label}
                                     </p>
                                 </>
                             )}
@@ -254,7 +278,6 @@ function ResultContent() {
                                     const userAnswer = answers[idx];
                                     const isCorrect = userAnswer === q.answer;
                                     return (
-                                        // 수정: green/red 하드코딩 → var(--accent)(정답)/red(오답, 예외 유지)
                                         <div
                                             key={q.id}
                                             className="rounded-md p-4 border"
@@ -321,15 +344,9 @@ function ResultContent() {
                         </div>
                     )}
 
-                    {/* ============================================================
-                        로드맵 카드
-                        수정: 그냥 나열하는 <div> 목록 → 클릭 가능한 <button> 목록으로 변경
-                        각 항목이 이제 problem_id를 갖고 있어서, 클릭하면
-                        /learn/foundation/{problem_id}로 바로 이동함
-                        ============================================================ */}
+                    {/* 로드맵 카드 */}
                     <div className="bg-[var(--bg-2)] border border-[var(--border-c)] rounded-md p-8 mb-6">
                         <h2 className="text-base font-bold mb-1">📚 학습 로드맵</h2>
-                        {/* 신규: "그냥 보는 목록"이 아니라 "눌러서 시작하는 목록"임을 안내 */}
                         <p className="text-xs text-[var(--text-3)] mb-4">항목을 눌러 바로 문제를 풀어보세요</p>
                         <div className="space-y-2">
                             {result!.roadmap.map((item, idx) => (
@@ -339,7 +356,6 @@ function ResultContent() {
                                     className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-[var(--bg-3)] transition-colors text-left"
                                 >
                                     {/* 순서 번호 */}
-                                    {/* 수정: bg-indigo-100 text-indigo-600 → var(--accent-bg)/var(--accent) */}
                                     <span
                                         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                                         style={{ background: "var(--accent-bg)", color: "var(--accent)" }}
@@ -347,7 +363,6 @@ function ResultContent() {
                                         {idx + 1}
                                     </span>
                                     <span className="text-sm text-[var(--text-2)] flex-1">{item.concept_tag}</span>
-                                    {/* 신규: 화살표 아이콘으로 "클릭하면 이동한다"는 신호를 시각적으로 추가 */}
                                     <i
                                         className="ti ti-chevron-right text-[var(--text-3)]"
                                         style={{ fontSize: "14px" }}
@@ -376,7 +391,6 @@ export default function ResultPage() {
     return (
         <Suspense
             fallback={
-                // 수정: 배경 CSS 변수화
                 <main className="min-h-screen bg-[var(--bg)] flex items-center justify-center">
                     <p className="text-[var(--text-2)]" />
                 </main>
