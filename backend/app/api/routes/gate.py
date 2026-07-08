@@ -26,6 +26,12 @@ from app.core.rate_limit import check_rate_limit, record_api_usage
 
 from app.core.rate_limit import check_rate_limit, record_api_usage, get_usage_status
 
+# 신규: JWT 인증 — 이 라우터의 두 엔드포인트는 전부 로그인 필수
+# (게이트는 Rate Limit이 걸린 유료 자원(Claude API 호출)이라
+#  게스트 허용 대상이 아니었음, 그래서 선택적 인증이 아니라
+#  submit.py에서 썼던 get_current_user 필수 인증을 그대로 사용)
+from app.core.auth import get_current_user
+
 # ─────────────────────────────────────────────
 # APIRouter: FastAPI에서 라우터(경로 묶음)를 만드는 클래스
 # prefix="/api/gate" → 이 라우터의 모든 엔드포인트 앞에 /api/gate가 붙음
@@ -47,14 +53,21 @@ client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 # ─────────────────────────────────────────────
 class GateGenerateRequest(BaseModel):
     problem_id: str        # 원본 문제 ID (UUID 형태의 문자열)
-    email: str             # 사용자 이메일 (유저 조회 키)
+    # 삭제: email 필드
+    # ============================================================
+    # 왜 삭제했는가
+    # ============================================================
+    # 게이트는 Rate Limit(하루 10회)이 걸린 자원인데, email을 body로
+    # 그대로 신뢰하면 "내 사용량을 남의 이메일로 떠넘기며 무한정
+    # 게이트를 생성"하는 게 가능했음. 이제는 아래 current_user
+    # (JWT로 검증된 값)만 신뢰함.
     language: str = "python"  # 언어 (기본값 python) → "= 값" 이 있으면 선택 필드
     is_first: bool = False      # 이번 풀이의 첫 게이트 시도 여부 (True면 시도 횟수 리셋)
 
 
 class GateVerifyRequest(BaseModel):
     problem_id: str
-    email: str
+    # 삭제: email 필드 — GateGenerateRequest와 동일한 이유
     gate_question: str         # 생성된 게이트 문제 텍스트
     gate_options: list[str]    # 보기 리스트 ["A. ...", "B. ...", ...]
     user_answer: int           # 사용자가 선택한 보기 인덱스 (0~3)
@@ -240,15 +253,20 @@ The question, options, and explanation MUST be written in Korean."""
 @router.post("/generate")
 async def generate_gate(
     request: GateGenerateRequest,
+    # 신규: 로그인 필수 인증 — 토큰 없거나 무효하면 자동으로 401
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # 수정: request.email → current_user["email"]
+    email = current_user["email"]
+
     # ── 1. 유저 조회 ──────────────────────────
     # text(): SQLAlchemy에서 raw SQL을 사용할 때 감싸는 래퍼
     # :email 은 바인딩 파라미터 → SQL 인젝션 방지
-    # {"email": request.email} 로 실제 값을 전달
+    # {"email": email} 로 실제 값을 전달
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     # fetchone(): 결과 중 첫 번째 행 하나만 가져옴 (없으면 None)
     user = user_result.fetchone()
@@ -416,11 +434,27 @@ async def generate_gate(
 @router.post("/verify")
 async def verify_gate(
     request: GateVerifyRequest,
+    # 신규: 로그인 필수 인증
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    # 수정: request.email → current_user["email"]
+    email = current_user["email"]
+
     # ── 1. 정답 여부 확인 ─────────────────────
     # 단순 인덱스 비교: 프론트에서 correct_answer를 함께 전송하는 구조
     # (보안 주의: 실제 서비스에서는 correct_answer를 DB에서 직접 조회하는 게 안전)
+    # ============================================================
+    # 참고: 이건 오늘 손대지 않는 별개의 취약점
+    # ============================================================
+    # request.correct_answer를 프론트가 그대로 보내는 구조라, 개발자
+    # 도구로 이 값을 훔쳐보거나 아예 조작해서 항상 "정답"으로 통과시킬
+    # 수 있음 — email 위조 문제와는 다른 종류의 문제(정답 자체가
+    # 클라이언트에 노출/신뢰됨). 근본 해결은 generate 시점에 문제와
+    # 정답을 DB(또는 서버 메모리)에 저장해두고, verify에서는 그 저장된
+    # 값과 비교하는 구조로 바꿔야 함. 오늘은 email/JWT 범위만 다루고,
+    # 이건 다음에 예정된 "AI 정답 검증 파이프라인" 작업과 묶어서
+    # 처리하는 게 좋을 것 같음 (같은 "정답 신뢰 구조" 문제라서)
     is_correct = request.user_answer == request.correct_answer
 
     if not is_correct:
@@ -446,7 +480,7 @@ async def verify_gate(
     # ── 3. 유저 조회 ──────────────────────────
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     user = user_result.fetchone()
 

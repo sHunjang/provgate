@@ -6,6 +6,8 @@ import { useAuth } from "@/app/hooks/useAuth";
 // import ThemeToggle from "@/app/components/ThemeToggle";
 import SiteNav from "@/app/components/SiteNav";
 
+import { createClient } from "@/app/lib/supabase";
+
 type SimilarProblem = {
     id: string;
     title: string;
@@ -49,6 +51,8 @@ export default function FeedbackPage() {
     );
 
     const [similarProblem, setSimilarProblem] = useState<SimilarProblem | null>(null);
+    // 토큰이 없을 때(비정상 접근) 등의 에러 메시지
+    const [similarProblemError, setSimilarProblemError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [hasFetched, setHasFetched] = useState(false);
     const submittedCode = searchParams.get("code") || "";
@@ -62,13 +66,28 @@ export default function FeedbackPage() {
                 setLoading(true);
                 setHasFetched(true);
 
+                // JWT 토큰 획득
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
+                if (!token) {
+                    setSimilarProblemError("로그인이 만료됐어요. 다시 로그인 후 시도해주세요.");
+                    return;
+                }
+
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/similar-problem`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
                     body: JSON.stringify({
                         problem_id: problemId,
                         level,
-                        email: user.email,
+                        // email: user.email,
                     }),
                 });
 
@@ -78,6 +97,7 @@ export default function FeedbackPage() {
                 setSimilarProblem(data);
             } catch (err) {
                 console.error(err);
+                setSimilarProblemError("유사 문제를 불러오는 중 오류가 발생했습니다.");
             } finally {
                 setLoading(false);
             }
@@ -187,6 +207,9 @@ export default function FeedbackPage() {
                         <div className="text-center py-8">
                             <p className="text-sm text-[var(--text-2)]">AI가 맞춤 문제를 생성하고 있어요...</p>
                         </div>
+                    ) : similarProblemError ? (
+                        // 신규: 에러 상태 표시
+                        <p className="text-sm text-red-500 text-center py-4">{similarProblemError}</p>
                     ) : similarProblem ? (
                         <div>
                             {/* 문제 정보 배지 */}
