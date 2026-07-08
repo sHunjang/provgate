@@ -3,6 +3,8 @@
 // useState: 모달 내부 상태 관리
 import { useState } from "react";
 
+import { createClient } from "../lib/supabase";
+
 // 게이트 모달 props 타입 정의
 type GateModalProps = {
     // 모달 표시 여부
@@ -32,7 +34,7 @@ type GateQuestion = {
     concept: string;
 };
 
-export default function GateModal({ isOpen, problemId, email, language, onPass, onClose }: GateModalProps) {
+export default function GateModal({ isOpen, problemId, language, onPass, onClose }: GateModalProps) {
     // 게이트 문제 데이터
     const [gateQuestion, setGateQuestion] = useState<GateQuestion | null>(null);
 
@@ -71,12 +73,28 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
         setResult(null);
 
         try {
+            // JWT 토큰 획득
+            const supabase = createClient();
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                // 로그인 안 된 상태로 게이트에 진입한 극단적 케이스 방어
+                setLoading(false);
+                return;
+            }
+
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gate/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
                 body: JSON.stringify({
                     problem_id: problemId,
-                    email,
+                    // email,
                     language: language,
                     // attempts가 0이면 이번 풀이의 첫 게이트 시도 → 백엔드가 gate_attempts를 1로 리셋
                     // attempts가 1 이상이면 재시도 → 누적
@@ -114,12 +132,27 @@ export default function GateModal({ isOpen, problemId, email, language, onPass, 
         setLoading(true);
 
         try {
+            // JWT 토큰 획득
+            const supabase = createClient();
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                setLoading(false);
+                return;
+            }
+
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gate/verify`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
                 body: JSON.stringify({
                     problem_id: problemId,
-                    email,
+                    // email,
                     gate_question: gateQuestion.question,
                     gate_options: gateQuestion.options,
                     user_answer: selectedAnswer,

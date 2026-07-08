@@ -21,6 +21,8 @@ import SiteNav from "@/app/components/SiteNav";
 // 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
 import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
 
+import { createClient } from "@/app/lib/supabase";
+
 // 온보딩 완료 결과 타입 정의
 type OnboardingResult = {
     email: string;
@@ -97,12 +99,27 @@ function ResultContent() {
             try {
                 setLoading(true);
 
+                // JWT 토큰 획득 - 이 엔드포인트는 이제 로그인이 필수라 토큰이 반드시 있어야 함
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
+                if (!token) {
+                    setError("로그인이 필요합니다.");
+                    setLoading(false);
+                    return;
+                }
+
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/complete`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
                     body: JSON.stringify({
-                        // 임시 이메일 - 나중에 인증 붙이면 교체
-                        email: user?.email || "",
+                        // email: user?.email || "",
                         declared_level: level,
                         answers,
                         correct_answers: correctAnswers,

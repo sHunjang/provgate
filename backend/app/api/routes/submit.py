@@ -11,6 +11,10 @@ from typing import Optional
 from app.core.config import settings
 from app.core.database import get_db
 
+# JWT 토큰 검증 의존성
+# /api/stats에서 이미 검증된 패턴을 그대로 가져옴
+from app.core.auth import get_current_user
+
 router = APIRouter(prefix="/api", tags=["submit"])
 
 # Claude API 클라이언트 초기화 - 싱글톤 패턴
@@ -24,7 +28,7 @@ class SubmitRequest(BaseModel):
     problem_id: str
 
     # 사용자 이메일
-    email:str
+    # email:str
 
     # 게이트 통과 토큰 -> 없으면 제출 불가
     token: Optional[str] = None
@@ -50,7 +54,7 @@ class SimilarProblemRequest(BaseModel):
 
     # 유사 문제를 받을 사용자 이메일
     # 이 문제는 이 사용자 전용으로 생성되어 DB에 저장됨 (개인 맞춤)
-    email: str
+    # email: str
 
 
 # POST /api/submit
@@ -58,6 +62,11 @@ class SimilarProblemRequest(BaseModel):
 @router.post("/submit")
 async def submit_solution(
     request: SubmitRequest,
+    # JWT 토큰을 검증해서 현재 로그인한 유저 정보를 가져옴
+    # Depends()로 주입하면, 토큰이 없거나 유효하지 않을 때
+    # get_current_user 내부에서 자동으로 401 에러를 발생
+    # (이 함수 안에서 따로 인증 체크 관련 코드 필요 없음)
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     
@@ -67,10 +76,13 @@ async def submit_solution(
     # print(f"problem_id: {request.problem_id}")
     # print(f"email: {request.email}")
 
+    # current_user는 Supabase가 서버에서 직접 검증한 값이라 위조 불가능
+    email = current_user["email"]
+
     # 유저 ID 조회 (skip_gate 여부 관계 없이 항상 필요)
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     user = user_result.fetchone()
 
@@ -95,7 +107,7 @@ async def submit_solution(
             {
                 "token": request.token,
                 "problem_id": request.problem_id,
-                "email": request.email,
+                "email": email,
             }
         )
         token_data = token_result.fetchone()
@@ -202,13 +214,17 @@ async def submit_solution(
 @router.post("/similar-problem")
 async def generate_similar_problem(
     request: SimilarProblemRequest,
+    # JWT 인증 - 이 문제를 누구 전용으로 저장할지 결정
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     
+    email = current_user["email"]
+
     # 유저 ID 조회 - 이 문제를 받을 사용자 (owner_user_id로 저장됨)
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     user = user_result.fetchone()
 
