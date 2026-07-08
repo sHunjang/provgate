@@ -897,16 +897,32 @@ export default function ProblemPage() {
                                 router.push("/auth/login");
                                 return;
                             }
+
+                            // JWT 토큰 획득 (stats 페이지와 동일 패턴)
+                            const supabase = createClient();
+                            const {
+                                data: { session },
+                            } = await supabase.auth.getSession();
+                            const token = session?.access_token;
+
+                            if (!token) {
+                                router.push("/auth/login");
+                                return;
+                            }
+
                             const timeSpentSec = elapsed;
                             const submitCode =
                                 aiAnswers !== null && aiAnswers.length > 0 ? JSON.stringify(aiAnswers) : code;
                             try {
                                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/submit`, {
                                     method: "POST",
-                                    headers: { "Content-type": "application/json" },
+                                    headers: {
+                                        "Content-type": "application/json",
+                                        Authorization: `Bearer ${token}`,
+                                    },
                                     body: JSON.stringify({
                                         problem_id: problem.id,
-                                        email: user?.email || "",
+                                        // email: user?.email || "",
                                         token: gateToken ?? null,
                                         code: submitCode,
                                         time_spent_sec: timeSpentSec,

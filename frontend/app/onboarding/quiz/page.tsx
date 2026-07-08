@@ -19,6 +19,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/app/hooks/useAuth";
 
+import { createClient } from "@/app/lib/supabase";
+
 // 신규: 사이트 공통 네비게이션 (로고 + 링크 + 로그인/유저메뉴 + 테마토글)
 // 오늘 오후에 6개 페이지 중복 코드를 통합해서 만든 컴포넌트를 그대로 재사용
 import SiteNav from "@/app/components/SiteNav";
@@ -84,10 +86,20 @@ function QuizContent() {
                 // 이 시점 이후로는 hasFetchedRef.current 체크에서 즉시 걸러짐
                 hasFetchedRef.current = true;
 
+                // 로그인한 경우에만 토큰을 가져옴 (게스트는 토큰 없이 진행)
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/quiz/generate`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ level, email: user?.email || "" }),
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ level }),
                 });
 
                 // 429 에러: Rate Limit 초과

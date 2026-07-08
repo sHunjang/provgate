@@ -6,6 +6,9 @@ from supabase import create_client, Client
 
 from app.core.config import settings
 
+# Optional 타입 사용을 위해 추가
+from typing import Optional
+
 # HTTPBearer: Authorization: Bearer <token> 형식의 헤더를 자동으로 파싱
 # auto_error=False: 토큰 없어도 에러 안 냄 (선택적 인증에 사용)
 security = HTTPBearer(auto_error=False)
@@ -66,3 +69,43 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             status_code=401,
             detail="토큰 검증 실패. 다시 로그인해주세요."
         )
+
+
+# ============================================================
+# 신규: 선택적 인증 (Optional Authentication)
+# ============================================================
+# get_current_user와의 차이:
+#   get_current_user: 토큰 없으면 무조건 401 에러 (로그인 필수 페이지용)
+#   get_current_user_optional: 토큰 없으면 그냥 None 반환 (게스트도 허용하되,
+#     로그인한 사람이면 그 신원을 확실히 검증하고 싶을 때 사용)
+#
+# 사용처 예시: 퀴즈 생성(quiz/generate)
+#   - 비로그인 사용자도 퀴즈를 체험해볼 수 있어야 함 (게스트 체험 컨셉 유지)
+#   - 근데 로그인한 사용자의 경우, "이 요청이 정말 이 사람 본인이 보낸 게
+#     맞는지"는 확실히 해야 함 — 안 그러면 Rate Limit(하루 사용 횟수 제한)을
+#     "내 사용량을 남의 이메일로 떠넘기기" 방식으로 무한정 우회할 수 있음
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> Optional[dict]:
+    # 토큰 자체가 없으면 "비로그인 게스트"로 간주하고 조용히 None 반환
+    # (에러를 던지지 않음 — 이게 get_current_user와의 핵심 차이)
+    if not credentials:
+        return None
+
+    token = credentials.credentials
+    try:
+        response = supabase.auth.get_user(token)
+        if not response or not response.user:
+            # 토큰이 있긴 한데 유효하지 않은 경우도 에러 대신 게스트 취급
+            # (예: 만료된 세션 — 굳이 로그인 페이지로 튕기지 않고 게스트로 계속 진행)
+            return None
+
+        user = response.user
+        return {
+            "user_id": str(user.id),
+            "email": user.email,
+        }
+
+    except Exception as e:
+        print(f"[AUTH] Optional auth error: {e}")
+        return None

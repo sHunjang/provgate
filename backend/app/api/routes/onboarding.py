@@ -26,6 +26,9 @@ import json
 #  직접 다양성을 강제하기 위한 모듈)
 import random
 
+# Optional 타입 - 선택적 인증 반환값 표현용
+from typing import Optional
+
 # 환경변수에서 API 키 가져오기
 from app.core.config import settings
 
@@ -34,6 +37,10 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
 
+# JWT 인증 의존성 두가지
+# get_current_user: 로그인 함수 (complete에서 사용)
+# get_current_user_optional: 로그인 선택 (quiz/generated에서 사용, 게스트 허용)
+from app.core.auth import get_current_user, get_current_user_optional
 
 # 이 라우터의 모든 엔드포인트는 /api/onboarding 으로 시작함.
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
@@ -50,11 +57,11 @@ class QuizGenerateRequest(BaseModel):
 
     # 사용자 이메일 (선택 - 비로그인도 퀴즈 가능)
     # Rate Limitin은 로그인 유저만 적용
-    email: str = ""
+    # email: str = ""
 
 
 # ============================================================
-# 신규: 개념 풀 (concept pool)
+# 개념 풀 (concept pool)
 # ============================================================
 # 기존엔 프롬프트 안에 "매번 다르게 만들어라"는 지시(Diversity Rules)만
 # 넣고 어떤 개념을 다룰지는 전부 AI 판단에 맡겼음. 그런데 LLM은 이런
@@ -87,6 +94,8 @@ concept_pool = {
 @router.post("/quiz/generate")
 async def generate_quiz(
     request: QuizGenerateRequest,
+    # 선택적 인증 - 토큰 있으면 검증된 유저 정보, 없으면 None(Guest)
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ):
     
@@ -105,12 +114,14 @@ async def generate_quiz(
             detail=f"올바르지 않은 수준입니다. beginner/intermediate/advanced 중 하나를 선택하세요."
         )
 
+    email = current_user["email"] if current_user else ""
+
     # 로그인 유저만 Rate Limiting 적용
     # 비로그인 유저는 퀴즈 자유롭게 사용 가능
-    if request.email:
+    if email:
         user_result = await db.execute(
             text("SELECT id FROM users WHERE email = :email"),
-            {"email": request.email}
+            {"email": email}
         )
 
         user = user_result.fetchone()
@@ -225,10 +236,10 @@ patterns from typical textbook examples).
     # JSON 파싱 성공 후 사용 기록 저장
     # 파싱 실패 시 횟수 차감 방지
     # 로그인 유저만 사용 기록 저장
-    if request.email:
+    if email:
         user_result = await db.execute(
             text("SELECT id FROM users WHERE email = :email"),
-            {"email": request.email}
+            {"email": email}
         )
         user = user_result.fetchone()
 
@@ -247,7 +258,7 @@ patterns from typical textbook examples).
 class OnboardingCompleteRequest(BaseModel):
 
     # 사용자 이메일 (임시 식별자 - 나중에 인증 붙이면 교체 예정)
-    email: str
+    # email: str
 
     # 사용자 처음 선택 수준
     declared_level: str
@@ -265,10 +276,14 @@ class OnboardingCompleteRequest(BaseModel):
 @router.post("/complete")
 async def complete_onboarding(
     request: OnboardingCompleteRequest,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    
+    email = current_user["email"]
+
     # 이메일 검증 - 빈 이메일이면 저장 안함
-    if not request.email or request.email.strip() == "":
+    if not email or email.strip() == "":
         raise HTTPException(
             status_code=400,
             detail="이메일이 필요합니다. 로그인 후 다시 시도해주세요."
@@ -325,7 +340,7 @@ async def complete_onboarding(
                 onboarding_score = :score
         """),
         {
-            "email": request.email,
+            "email": email,
             "declared_level": request.declared_level,
             "confirmed_level": confirmed_level,
             "score": score
@@ -382,7 +397,7 @@ async def complete_onboarding(
         })
 
     return {
-        "email": request.email,
+        "email": email,
         "declared_level": request.declared_level,
         "confirmed_level": confirmed_level,
         "score": score,
@@ -396,6 +411,12 @@ async def complete_onboarding(
 
 # GET /api/onboarding/user-level
 # 로그인한 유저의 수준 문제 목록 조회
+# ============================================================
+# 참고: 이 엔드포인트는 아직 email 쿼리 파라미터를 그대로 신뢰함
+# (조회 전용이라 위조해도 "남의 레벨 정보를 볼 수 있는" 수준의
+#  프라이버시 문제이지, submit/complete처럼 데이터를 조작할 순 없음.
+#  오늘은 쓰기 작업(제출/생성/완료) 위조 방지를 우선순위로 처리했고,
+#  이 조회 엔드포인트는 다음 정리 대상으로 남겨둠)
 @router.get("/user-level")
 async def get_user_level(
     email: str,
