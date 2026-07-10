@@ -24,6 +24,8 @@ import sys
 import os
 from typing import Optional
 
+import ast
+
 
 # ============================================================
 # 1단계: 위험한 코드 패턴 차단
@@ -184,3 +186,46 @@ def verify_code_answer(
 
     claimed_answer = options[answer_index]
     return _normalize(output) == _normalize(claimed_answer)
+
+
+# ============================================================
+# 유사 문제(similar-problem)의 test_cases 형식 검증
+# ============================================================
+# similar-problem은 게이트/퀴즈와 달리 "정답 코드"가 없어서
+# (사용자가 직접 풀어야 하는 새 문제이므로), "이 test_case가
+# 실제로 옳은 정답인가"는 검증할 방법이 없음.
+# 대신 검증 가능한 건 "형식이 최소한 올바른가"뿐임:
+#   - input이 파이썬 리스트 리터럴로 파싱 가능한가
+#     (예: "[1000, 2000]"은 OK, "1000, 2000"은 형식 오류)
+#   - output이 비어있지 않은가
+# 이건 예전에 실제로 겪었던 "starter_codes 포맷 버그"와 같은 계열의
+# 문제를 미리 걸러내는 안전장치
+def validate_test_cases_format(test_cases: list[dict]) -> bool:
+    """
+    test_cases 리스트의 각 항목이 최소 형식 요건을 만족하는지 확인.
+    하나라도 어긋나면 False (전체 재생성 트리거).
+    """
+    if not test_cases:
+        return False
+
+    for tc in test_cases:
+        if "input" not in tc or "output" not in tc:
+            return False
+
+        # ast.literal_eval: eval()과 달리 "리터럴"(숫자, 문자열, 리스트,
+        # 딕셔너리 등)만 안전하게 파싱함 — 임의 코드 실행이 안 되므로
+        # 여기서는 exec/subprocess 격리 없이 그냥 써도 안전함
+        try:
+            parsed_input = ast.literal_eval(tc["input"])
+        except (ValueError, SyntaxError):
+            return False
+
+        # input은 함수 인자 목록이어야 하므로 리스트 형태여야 함
+        # (프롬프트에서 요구한 "[value1, value2]" 형식과 일치하는지)
+        if not isinstance(parsed_input, list):
+            return False
+
+        if not str(tc["output"]).strip():
+            return False
+
+    return True
