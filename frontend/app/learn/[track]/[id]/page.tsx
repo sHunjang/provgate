@@ -115,10 +115,18 @@ export default function ProblemPage() {
         const fetchProblem = async () => {
             try {
                 setLoading(true);
-                const email = user?.email || "";
-                const res = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/problems/detail/${problemId}?email=${encodeURIComponent(email)}`,
-                );
+
+                // 로그인 상태면 토큰 획득
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/problems/detail/${problemId}`, {
+                    headers: authHeaders,
+                });
                 if (!res.ok) throw new Error("문제를 불러오지 못했습니다.");
                 const data = await res.json();
                 setProblem(data);

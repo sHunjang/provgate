@@ -11,6 +11,8 @@ import SiteNav, { SiteNavLink } from "../components/SiteNav";
 // 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
 import { LEVEL_META, LEVEL_ORDER, type Level } from "../lib/levelMeta";
 
+import { createClient } from "../lib/supabase";
+
 // ============================================================
 // 타입 정의
 // ============================================================
@@ -96,7 +98,18 @@ function LearnContent() {
         const initialize = async () => {
             try {
                 setLoading(true);
+
+                // 로그인 상태면 토큰 획득 (게스트는 토큰 없이 진행)
+                const supabase = createClient();
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
                 const email = user?.email || "";
+
+                // 조건부 Authorization 헤더 - 토큰 있으면 포함, 없으면 생략
+                const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
                 // 로그인 유저는 온보딩 여부 먼저 체크
                 if (email) {
@@ -116,9 +129,9 @@ function LearnContent() {
                 const levels = ["beginner", "intermediate", "advanced"];
                 const responses = await Promise.all(
                     levels.map((lv) =>
-                        fetch(
-                            `${process.env.NEXT_PUBLIC_API_URL}/api/problems/${lv}?email=${encodeURIComponent(email)}`,
-                        ).then((res) => {
+                        fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/problems/${lv}`, {
+                            headers: authHeaders,
+                        }).then((res) => {
                             if (!res.ok) throw new Error("문제 목록을 불러오지 못했습니다.");
                             return res.json();
                         }),
