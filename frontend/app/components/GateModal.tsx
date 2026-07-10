@@ -152,11 +152,7 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                 },
                 body: JSON.stringify({
                     problem_id: problemId,
-                    // email,
-                    gate_question: gateQuestion.question,
-                    gate_options: gateQuestion.options,
                     user_answer: selectedAnswer,
-                    correct_answer: gateQuestion.answer,
                 }),
             });
 
