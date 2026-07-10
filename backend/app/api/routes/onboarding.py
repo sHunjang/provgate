@@ -42,6 +42,9 @@ from app.core.rate_limit import check_rate_limit, record_api_usage
 # get_current_user_optional: 로그인 선택 (quiz/generated에서 사용, 게스트 허용)
 from app.core.auth import get_current_user, get_current_user_optional
 
+# 문제 각각 검증
+from app.core.code_verifier import verify_code_answer
+
 # 이 라우터의 모든 엔드포인트는 /api/onboarding 으로 시작함.
 router = APIRouter(prefix="/api/onboarding", tags=["onboarding"])
 
@@ -225,13 +228,89 @@ patterns from typical textbook examples).
     try:
         quiz_data = json.loads(response_text)
     except json.JSONDecodeError as e:
-        # 에러 상세 로깅
         print(f"JSON 파싱 에러: {e}")
         print(f"응답 텍스트: {repr(response_text[:200])}")
         raise HTTPException(
             status_code=500,
             detail=f"퀴즈 생성 중 오류가 발생했습니다. 다시 시도해주세요."
         )
+
+    # ============================================================
+    # 신규: 5문제 각각의 코드 실행 결과 검증
+    # ============================================================
+    # 퀴즈는 한 번의 API 호출로 5문제가 통째로 나오기 때문에,
+    # 게이트(문제 1개)처럼 "전체를 다시 생성"하면 낭비가 큼.
+    # 대신 검증에 실패한 문제 "하나만" 별도로 재생성함
+    questions = quiz_data["questions"]
+
+    for idx, q in enumerate(questions):
+        verify_result = verify_code_answer(q["question"], q["options"], q["answer"])
+
+        if verify_result is False:
+            print(f"[QUIZ] 문제 {idx+1} 정답 불일치 감지 — 개별 재생성 시도")
+
+            concept = selected_concepts[idx] if idx < len(selected_concepts) else q.get("concept", "")
+
+            # 해당 개념 하나에 대해서만 새 문제를 만들어달라고 요청
+            # (5문제 전체를 다시 만들지 않고 딱 1문제만 재생성 — 비용 절약)
+            retry_prompt = f"""Generate exactly ONE diagnostic quiz question about the concept "{concept}"
+for a {request.level} level Python learner.
+
+[Requirements]
+1. Multiple choice with 4 options
+2. Test code understanding and reasoning, not memorization
+3. Wrong answers must be based on common misconceptions
+4. IMPORTANT: question, options, and explanation MUST be written in Korean
+
+[Output JSON Schema]
+{{
+    "id": {idx + 1},
+    "question": "question content in Korean",
+    "options": ["A. option1", "B. option2", "C. option3", "D. option4"],
+    "answer": 0,
+    "concept": "concept in Korean",
+    "explanation": "reason for correct answer in Korean"
+}}"""
+
+            try:
+                retry_message = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=1000,
+                    system="""You are an expert Python coding educator.
+Always respond with valid JSON only. Never include any text outside the JSON structure.""",
+                    messages=[{"role": "user", "content": retry_prompt}]
+                )
+                retry_text = next(
+                    (block.text for block in retry_message.content
+                    if isinstance(block, anthropic.types.TextBlock)),
+                    ""
+                )
+                retry_text = retry_text.strip()
+                if retry_text.startswith("```json"):
+                    retry_text = retry_text[7:]
+                if retry_text.startswith("```"):
+                    retry_text = retry_text[3:]
+                if retry_text.endswith("```"):
+                    retry_text = retry_text[:-3]
+                retry_text = retry_text.strip()
+
+                retry_q = json.loads(retry_text)
+                retry_verify = verify_code_answer(
+                    retry_q["question"], retry_q["options"], retry_q["answer"]
+                )
+
+                if retry_verify is not False:
+                    # 재시도 통과 → 원래 자리(idx)에 교체
+                    questions[idx] = retry_q
+                else:
+                    # 재시도까지 실패 — 로그만 남기고 원본 유지
+                    # (게이트와 동일한 방침: 폴백 유형 전환은 다음 단계로 미룸)
+                    print(f"[QUIZ] 문제 {idx+1} 재시도도 실패 — 원본 유지")
+
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"[QUIZ] 문제 {idx+1} 재생성 중 오류: {e} — 원본 유지")
+
+    quiz_data["questions"] = questions
 
     # JSON 파싱 성공 후 사용 기록 저장
     # 파싱 실패 시 횟수 차감 방지
