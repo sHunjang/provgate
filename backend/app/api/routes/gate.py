@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
-
+from app.core.code_verifier import verify_code_answer
 from app.core.rate_limit import check_rate_limit, record_api_usage, get_usage_status
 
 # 신규: JWT 인증 — 이 라우터의 두 엔드포인트는 전부 로그인 필수
@@ -359,6 +359,61 @@ async def generate_gate(
             status_code=500,
             detail="게이트 문제 생성 중 오류가 발생했습니다."
         )
+
+    # ============================================================
+    # 코드 실행 결과 검증
+    # ============================================================
+    # verify_code_answer가 False를 반환하면(코드는 있는데 정답이 틀림),
+    # 딱 1번만 Claude에게 다시 만들어달라고 요청함.
+    # None이 오면(애초에 코드가 없는 문제) 검증 대상이 아니므로 그냥 통과.
+    verify_result = verify_code_answer(
+        gate_data["question"], gate_data["options"], gate_data["answer"]
+    )
+
+    if verify_result is False:
+        print(f"[Gate] 정답 불일치 감지 - 재생성 시도 (problem_id={request.problem_id})")
+
+        # 같은 프롬프트 1회 재시도
+        retry_message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        retry_text = next(
+            (block.text for block in retry_message.content
+            if isinstance(block, anthropic.types.TextBlock)),
+            ""
+        )
+
+        retry_text = retry_text.strip()
+        if retry_text.startswith("```json"):
+            retry_text = retry_text[7:]
+        if retry_text.startswith("```"):
+            retry_text = retry_text[3:]
+        if retry_text.endswith("```"):
+            retry_text = retry_text[:-3]
+        retry_text = retry_text.strip()
+
+        try:
+            retry_data = json.loads(retry_text)
+            retry_verify = verify_code_answer(
+                retry_data["question"], retry_data["options"], retry_data["answer"]
+            )
+            if retry_verify is not False:
+                # 재시도가 통과(True) 또는 검증불가(None)면 재시도 결과로 교체
+                gate_data = retry_data
+            else:
+                # 재시도까지 실패 — 완전히 다른 유형으로 바꾸는 로직은
+                # 아직 없어서, 일단 재시도 결과를 그대로 쓰고 로그만 남김
+                # (모니터링 후 실제로 자주 발생하면 폴백 로직 추가 예정)
+                print(f"[GATE] 재시도도 실패 — 재시도 결과로 진행 (problem_id={request.problem_id})")
+                gate_data = retry_data
+        except json.JSONDecodeError:
+            # 재시도 응답 파싱조차 실패하면 원본 gate_data를 그대로 사용
+            print(f"[GATE] 재시도 응답 파싱 실패 — 원본 유지 (problem_id={request.problem_id})")
+
 
     # ── 9. Rate Limit 사용 기록 ───────────────
     # 체크(check)와 기록(record)을 분리한 이유:
