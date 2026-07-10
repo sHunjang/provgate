@@ -10,6 +10,7 @@ from typing import Optional
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.code_verifier import validate_test_cases_format
 
 # JWT 토큰 검증 의존성
 # /api/stats에서 이미 검증된 패턴을 그대로 가져옴
@@ -69,12 +70,6 @@ async def submit_solution(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    
-    # 디버그 로그 추가
-    # print("=== 제출 디버깅 ===")
-    # print(f"token: {request.token}")
-    # print(f"problem_id: {request.problem_id}")
-    # print(f"email: {request.email}")
 
     # current_user는 Supabase가 서버에서 직접 검증한 값이라 위조 불가능
     email = current_user["email"]
@@ -88,7 +83,7 @@ async def submit_solution(
 
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    
+
     user_id = user._mapping["id"]
 
     # skip_gate가 False일 때만 토큰 검증
@@ -112,16 +107,13 @@ async def submit_solution(
         )
         token_data = token_result.fetchone()
 
-        # 디버깅 로그
-        # print(f"token_data: {token_data}")
-
         # 토큰이 없으면 제출 불가
         if not token_data:
             raise HTTPException(
                 status_code=403,
                 detail="유효하지 않은 토큰입니다. 게이드를 먼저 통과해주세요."
             )
-        
+
         token_dict = dict(token_data._mapping)
 
         # 이미 사용된 토큰이면 제출 불가
@@ -130,16 +122,13 @@ async def submit_solution(
                 status_code=403,
                 detail="이미 사용된 토큰입니다."
             )
-        
+
         # 만료된 토크이면 제출 불가
         if token_dict["expires_at"] < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=403,
                 detail="만료된 토큰입니다. 게이트를 다시 통과해주세요.",
             )
-
-        # user_id = token_dict["user_id"]
-
 
         # 2. 토큰 사용 처리 - 재사용 방지
         await db.execute(
@@ -218,7 +207,7 @@ async def generate_similar_problem(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    
+
     email = current_user["email"]
 
     # 유저 ID 조회 - 이 문제를 받을 사용자 (owner_user_id로 저장됨)
@@ -250,24 +239,16 @@ async def generate_similar_problem(
 
     if not problem:
         raise HTTPException(status_code=404, detail="문제를 찾을 수 없습니다.")
-    
+
     problem_data = dict(problem._mapping)
 
-
-    # Claude API로 유사 문제 생성
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
-        system="""You are an expert Python coding educator.
-Generate a similar coding problem that practices the same concept
-but with a different scenario.
-Always respond with valid JSON only.
-Never include any text outside the JSON structure.
-All content must be written in Korean.""",
-        messages=[
-                    {
-                        "role": "user",
-                        "content": f"""Generate a similar problem based on the following.
+    # ============================================================
+    # 신규: 프롬프트를 별도 변수로 미리 만들어둠
+    # ============================================================
+    # 원본 생성뿐 아니라 재시도(형식 오류 시)에서도 똑같은 프롬프트를
+    # 그대로 재사용해야 하므로, 함수 안에서 한 번만 정의해두고
+    # 아래 두 곳(원본 호출, 재시도 호출)에서 같이 씀
+    similar_problem_prompt = f"""Generate a similar problem based on the following.
 
         [Original Problem]
         Title: {problem_data['title']}
@@ -301,8 +282,20 @@ All content must be written in Korean.""",
             ],
             "starter_code": "def solution(param1, param2):\\n    # 여기에 코드를 작성하세요\\n    return"
         }}"""
-                    }
-                ]
+
+    similar_problem_system = """You are an expert Python coding educator.
+Generate a similar coding problem that practices the same concept
+but with a different scenario.
+Always respond with valid JSON only.
+Never include any text outside the JSON structure.
+All content must be written in Korean."""
+
+    # Claude API로 유사 문제 생성
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1500,
+        system=similar_problem_system,
+        messages=[{"role": "user", "content": similar_problem_prompt}]
     )
 
     # text 타입 블록만 필터링
@@ -332,19 +325,65 @@ All content must be written in Korean.""",
             detail="유사 문제 생성 중 오류가 발생했습니다."
         )
 
+    # ============================================================
+    # 신규: test_cases 형식 검증 (실패 시 1회 재생성)
+    # ============================================================
+    # 정답 자체가 맞는지(수학적으로 옳은 결과인지)는 검증할 수 없음 —
+    # similar-problem은 게이트/퀴즈와 달리 "정답 코드"가 없는 새 문제라서
+    # 실행해서 검산할 대상 자체가 없기 때문. 대신 검증 가능한 최소
+    # 기준인 "형식이 올바른가"만 확인함:
+    #   - input이 파이썬 리스트 리터럴로 파싱되는가
+    #   - output이 비어있지 않은가
+    # 이건 예전에 실제로 겪었던 starter_codes 포맷 버그와 같은 계열의
+    # 문제(형식이 깨져서 실제 풀이 화면에서 런타임 에러가 나는 것)를
+    # 미리 걸러내는 안전장치
+    if not validate_test_cases_format(similar_problem.get("test_cases", [])):
+        print(f"[SIMILAR-PROBLEM] test_cases 형식 오류 감지 — 재생성 시도 (problem_id={request.problem_id})")
+
+        retry_message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1500,
+            system=similar_problem_system,
+            messages=[{"role": "user", "content": similar_problem_prompt}]
+        )
+
+        retry_text = next(
+            (block.text for block in retry_message.content
+                if isinstance(block, anthropic.types.TextBlock)),
+            ""
+        )
+        retry_text = retry_text.strip()
+        if retry_text.startswith("```json"):
+            retry_text = retry_text[7:]
+        if retry_text.startswith("```"):
+            retry_text = retry_text[3:]
+        if retry_text.endswith("```"):
+            retry_text = retry_text[:-3]
+        retry_text = retry_text.strip()
+
+        try:
+            retry_problem = json.loads(retry_text)
+            if validate_test_cases_format(retry_problem.get("test_cases", [])):
+                similar_problem = retry_problem
+            else:
+                # 재시도까지 실패 — 로그만 남기고 재시도 결과로 그대로 진행
+                # (게이트/퀴즈와 동일한 방침: 완전 폴백은 로그가 쌓이면 판단)
+                print(f"[SIMILAR-PROBLEM] 재시도도 형식 오류 — 재시도 결과로 진행 (problem_id={request.problem_id})")
+                similar_problem = retry_problem
+        except json.JSONDecodeError:
+            # 재시도 응답 파싱 자체가 실패하면 원본(형식은 깨졌지만
+            # 파싱은 됐던)을 그대로 사용
+            print(f"[SIMILAR-PROBLEM] 재시도 응답 파싱 실패 — 원본 유지 (problem_id={request.problem_id})")
+
 
     # ============================================================
-    # 신규: 생성된 문제를 DB에 즉시 저장 (개인 전용)
+    # 생성된 문제를 DB에 즉시 저장 (개인 전용)
     # ============================================================
     # AI가 만든 starter_code는 순수 문자열이므로,
     # 기존 problems.starter_code 컬럼 형식(JSONB, {"python": "..."})에 맞춰 변환
-    # (오늘 발견한 starter_codes 포맷 버그와 같은 실수를 반복하지 않기 위한 처리)
     starter_codes_dict = {"python": similar_problem.get("starter_code", "")}
 
     # title 중복 충돌 방지
-    # problems.title에 UNIQUE 제약이 걸려있을 가능성이 있으므로 (sync_problems.py의
-    # ON CONFLICT(title) 로직 참고), AI가 생성한 제목 뒤에 짧은 식별자를 붙여
-    # 같은 제목이 여러 번 생성돼도 충돌하지 않게 함
     import uuid
     unique_title = f"{similar_problem['title']} #{str(uuid.uuid4())[:8]}"
 
@@ -377,9 +416,6 @@ All content must be written in Korean.""",
 
     new_problem_row = insert_result.fetchone()
 
-    # fetchone()의 반환 타입은 Row | None이라, 타입 체커가 None 가능성을 경고함
-    # RETURNING id가 있는 INSERT는 보통 항상 1행을 반환하지만,
-    # 방어적으로 None 체크를 추가해서 타입 경고도 없애고 런타임 안전성도 높임
     if new_problem_row is None:
         raise HTTPException(
             status_code=500,
@@ -393,6 +429,6 @@ All content must be written in Korean.""",
     # 프론트에는 원래 제목(식별자 없이)을 보여주고,
     # id만 추가로 내려줘서 "이 문제 도전하기" 버튼이 실제 라우팅을 할 수 있게 함
     similar_problem["id"] = new_problem_id
-    similar_problem["title"] = similar_problem["title"]  # 원본 제목 유지 (DB엔 unique_title 저장됨)
+    similar_problem["title"] = similar_problem["title"]
 
     return similar_problem
