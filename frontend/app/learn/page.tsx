@@ -111,11 +111,12 @@ function LearnContent() {
                 // 조건부 Authorization 헤더 - 토큰 있으면 포함, 없으면 생략
                 const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
-                // 로그인 유저는 온보딩 여부 먼저 체크
+                // email 쿼리 파라미터 삭제, Authorization 헤더로 대체
+                // (email이 있을 때만 이 블록에 들어오므로 token도 항상 존재함)
                 if (email) {
-                    const levelRes = await fetch(
-                        `${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/user-level?email=${encodeURIComponent(email)}`,
-                    );
+                    const levelRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/onboarding/user-level`, {
+                        headers: authHeaders,
+                    });
                     if (levelRes.ok) {
                         const levelData = await levelRes.json();
                         if (!levelData.has_onboarding) {
