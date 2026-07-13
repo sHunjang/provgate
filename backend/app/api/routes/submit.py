@@ -7,6 +7,7 @@ import anthropic
 import json
 from datetime import datetime, timezone
 from typing import Optional
+import random
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -242,12 +243,17 @@ async def generate_similar_problem(
 
     problem_data = dict(problem._mapping)
 
-    # ============================================================
-    # 신규: 프롬프트를 별도 변수로 미리 만들어둠
-    # ============================================================
-    # 원본 생성뿐 아니라 재시도(형식 오류 시)에서도 똑같은 프롬프트를
-    # 그대로 재사용해야 하므로, 함수 안에서 한 번만 정의해두고
-    # 아래 두 곳(원본 호출, 재시도 호출)에서 같이 씀
+    # 시나리오 맥락 풀 — gate.py와 동일한 원리
+    # (게이트에 정의한 것과 같은 풀을 재사용해서, 서비스 전체에서
+    # "비슷비슷한 시나리오"가 반복되는 문제를 한 번에 해결)
+    scenario_contexts = [
+        "온라인 쇼핑몰 재고 관리", "학교 성적 관리 시스템", "날씨 데이터 분석",
+        "SNS 팔로워 수 집계", "게임 점수판", "은행 계좌 거래 내역",
+        "도서관 대출 기록", "택배 배송 추적", "카페 주문 관리",
+        "헬스장 회원 출석 체크", "영화 예매 시스템", "레시피 재료 계산",
+    ]
+    scenario_context = random.choice(scenario_contexts)
+
     similar_problem_prompt = f"""Generate a similar problem based on the following.
 
         [Original Problem]
@@ -255,6 +261,11 @@ async def generate_similar_problem(
         Description: {problem_data['description']}
         Concept: {problem_data['concept_tag']}
         Level: {problem_data['level']}
+
+        [Scenario Context - MUST USE]
+        Base the new scenario on this real-world context: "{scenario_context}"
+        Do not use generic or commonly seen examples — ground the question
+        in the given context above.
 
         [Requirements]
         1. Same concept but completely different scenario
@@ -283,9 +294,11 @@ async def generate_similar_problem(
             "starter_code": "def solution(param1, param2):\\n    # 여기에 코드를 작성하세요\\n    return"
         }}"""
 
-    similar_problem_system = """You are an expert Python coding educator.
+    # 수정: 시니어 개발자 페르소나 반영
+    similar_problem_system = """You are a senior Python engineer with 10+ years
+of experience, creating realistic practice problems for junior developers.
 Generate a similar coding problem that practices the same concept
-but with a different scenario.
+but with a different, real-world scenario.
 Always respond with valid JSON only.
 Never include any text outside the JSON structure.
 All content must be written in Korean."""
