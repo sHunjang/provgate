@@ -1,0 +1,32 @@
+title: "영수증 합계 계산하기"
+description: |
+    두 금액 price1, price2를 입력받아 합계를 반환하는 함수를 작성하세요.
+
+    예시:
+    - solution(1200, 800) → 2000
+    - solution(15000, 2500) → 17500
+
+level: "beginner"
+concept_tag: "사칙연산"
+problem_type: "coding"
+order_idx: 1
+language: "python"
+
+starter_codes:
+    python: |
+        def solution(price1, price2):
+            # 여기에 코드를 작성하세요
+            return
+    javascript: |
+        function solution(price1, price2) {
+            // 여기에 코드를 작성하세요
+            return;
+        }
+
+test_cases:
+    - input: "[1200, 800]"
+      output: "2000"
+    - input: "[15000, 2500]"
+      output: "17500"
+    - input: "[-2000, 5000]"
+      output: "3000"

@@ -1,0 +1,28 @@
+title: "학생 시험 점수의 중앙값 계산"
+level: "intermediate"
+concept_tag: "리스트, 정렬"
+order_idx: 3
+
+description: |
+    학생들의 시험 점수 리스트를 입력받아 중앙값을 반환하는 함수를
+    작성하세요. 리스트의 길이는 항상 홀수입니다.
+
+    예시:
+    - solution([85, 90, 78, 92, 88]) → 88
+    - solution([72, 95, 60]) → 72
+
+starter_codes:
+    python: |
+        def solution(scores):
+            # 여기에 코드를 작성하세요
+            return
+
+test_cases:
+    - input: "[[85, 90, 78, 92, 88]]"
+      output: "88"
+    - input: "[[72, 95, 60]]"
+      output: "72"
+    - input: "[[50, 60, 70, 80, 90]]"
+      output: "70"
+
+hint_keywords: "sorted(), 리스트 인덱싱, 중간 인덱스 계산"
