@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 type Question = {
     question: string;
     choices: string[];
-    answer?: number; // 다른 컴포넌트들과 타입 모양을 맞추기 위해 추가
-    answers?: number[]; // 필수 → 선택적으로 변경
+    answer?: number;
+    answers?: number[];
     explanation: string;
 };
 
@@ -25,28 +25,58 @@ type Props = {
 // 채점 방식: AI가 판단하지 않고, 선택한 인덱스 집합과 정답 집합을
 // 그대로 비교함(set 비교) — AIQuestionSection과 동일한 신뢰 수준.
 // 진짜 엄격한 검증은 이 화면이 아니라 게이트(재검증)에서 이뤄짐
+//
+// 신규: 보기 순서를 클라이언트에서 한 번 섞음
+// YAML 파일에는 정답이 항상 [0, 1, 2]처럼 앞쪽에 고정돼 있는데,
+// 이건 게이트(매번 AI가 새로 생성 + 서버에서 shuffle)와 달리
+// "고정된 학습용 확인 화면"이라 원래는 문제 없었지만, 그래도
+// 매번 같은 위치에 정답이 있는 게 신경 쓰일 수 있어 여기서도 섞음
 // ============================================================
 export default function TradeoffJudgmentSection({ problem, onComplete }: Props) {
     const [selected, setSelected] = useState<number[]>([]);
     const [submitted, setSubmitted] = useState(false);
 
     const question = problem.questions?.[0];
-    if (!question) return null;
 
-    // answers가 undefined일 수 있으므로 빈 배열로 기본값 처리
-    // (이 컴포넌트는 tradeoff_judgment 전용이라 실제로는 항상 채워져
-    //  있어야 정상이지만, 타입 시스템 차원에서 안전하게 처리)
-    const correctAnswers = question.answers ?? [];
+    // 신규: 보기 순서 셔플 + 정답 인덱스 재계산
+    // useMemo로 question이 바뀔 때만 재계산 — 렌더링마다(클릭할 때마다)
+    // 다시 섞이면 사용자가 클릭할 때마다 보기 위치가 바뀌는 혼란스러운
+    // 경험이 되므로, 컴포넌트가 이 문제를 처음 받았을 때 딱 한 번만 섞음
+    const { shuffledChoices, shuffledAnswers } = useMemo(() => {
+        if (!question) return { shuffledChoices: [], shuffledAnswers: [] };
+
+        const correctAnswers = question.answers ?? [];
+        const indexed = question.choices.map((choice, idx) => ({ choice, idx }));
+
+        // Fisher-Yates 셔플
+        for (let i = indexed.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+        }
+
+        // 원래 인덱스 → 셔플 후 새 인덱스 매핑
+        const oldToNew = new Map(indexed.map((item, newIdx) => [item.idx, newIdx]));
+        const newAnswers = correctAnswers.map((oldIdx) => oldToNew.get(oldIdx)!).sort((a, b) => a - b);
+
+        return {
+            shuffledChoices: indexed.map((item) => item.choice),
+            shuffledAnswers: newAnswers,
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [question]);
+
+    if (!question) return null;
 
     const toggle = (idx: number) => {
         if (submitted) return;
         setSelected((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]));
     };
 
-    // 수정: question.answers → correctAnswers
-    const correctSet = new Set(correctAnswers);
+    // 수정: correctAnswers → shuffledAnswers (셔플된 위치 기준)
+    const correctSet = new Set(shuffledAnswers);
     const selectedSet = new Set(selected);
-    const isExactMatch = correctSet.size === selectedSet.size && Array.from(correctSet).every((v) => selectedSet.has(v));
+    const isExactMatch =
+        correctSet.size === selectedSet.size && Array.from(correctSet).every((v) => selectedSet.has(v));
 
     return (
         <div className="mt-6">
@@ -61,7 +91,8 @@ export default function TradeoffJudgmentSection({ problem, onComplete }: Props) 
                 <p className="text-sm font-medium mb-4">{question.question}</p>
 
                 <div className="space-y-2 mb-4">
-                    {question.choices.map((choice, idx) => {
+                    {/* 수정: question.choices → shuffledChoices */}
+                    {shuffledChoices.map((choice, idx) => {
                         const isChecked = selected.includes(idx);
                         const isCorrectChoice = correctSet.has(idx);
                         return (
@@ -72,20 +103,16 @@ export default function TradeoffJudgmentSection({ problem, onComplete }: Props) 
                                 style={
                                     submitted
                                         ? isCorrectChoice && isChecked
-                                            ? // 정답이면서 선택함 → 초록(정답 맞춤)
-                                              {
+                                            ? {
                                                   borderColor: "var(--accent)",
                                                   background: "var(--accent-bg)",
                                                   color: "var(--text)",
                                               }
                                             : isCorrectChoice && !isChecked
-                                              ? // 신규: 정답인데 선택 안 함 → 빨간색으로 "놓쳤다" 표시
-                                                { borderColor: "#dc2626", background: "#fee2e2", color: "#dc2626" }
+                                              ? { borderColor: "#dc2626", background: "#fee2e2", color: "#dc2626" }
                                               : isChecked
-                                                ? // 정답 아닌데 선택함 → 빨간색(오답 선택)
-                                                  { borderColor: "#dc2626", background: "#fee2e2", color: "#dc2626" }
-                                                : // 정답도 아니고 선택도 안 함 → 회색(중립)
-                                                  { borderColor: "var(--border-c)", color: "var(--text-3)" }
+                                                ? { borderColor: "#dc2626", background: "#fee2e2", color: "#dc2626" }
+                                                : { borderColor: "var(--border-c)", color: "var(--text-3)" }
                                         : isChecked
                                           ? {
                                                 borderColor: "var(--accent3)",
