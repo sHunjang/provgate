@@ -73,6 +73,7 @@ async def get_problems(
                     order_idx, problem_type, track
             FROM problems
             WHERE level = :level
+            AND is_active = TRUE
             AND (owner_user_id IS NULL OR owner_user_id = :current_user_id)
             ORDER BY order_idx ASC
         """),
