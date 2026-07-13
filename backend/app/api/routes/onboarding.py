@@ -498,16 +498,20 @@ async def complete_onboarding(
 #  이 조회 엔드포인트는 다음 정리 대상으로 남겨둠)
 @router.get("/user-level")
 async def get_user_level(
-    email: str,
+    # email: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     
-    # 이메일 검증
-    if not email:
-        raise HTTPException(
-            status_code=400,
-            detail="이메일이 필요합니다."
-        )
+    # 쿼리 파라미터 대신 검증된 토큰에서 이메일 추출
+    email = current_user["email"]
+
+    # # 이메일 검증
+    # if not email:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail="이메일이 필요합니다."
+    #     )
     
     # DB에서 유저 수준 조회
     from sqlalchemy import text
