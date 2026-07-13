@@ -5,7 +5,7 @@ import { useState } from "react";
 type Question = {
     question: string;
     choices: string[];
-    answer: number;
+    answer?: number;
     explanation: string;
 };
 

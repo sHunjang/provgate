@@ -1,10 +1,9 @@
 # 이해 확인 게이트 라우터
-# 핵심 기능: 같은 개념의 다른 유형 문제로 실제 이해도 검증
-
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from typing import Optional
 import anthropic
 import json
 import random
@@ -30,20 +29,10 @@ class GateGenerateRequest(BaseModel):
 
 class GateVerifyRequest(BaseModel):
     problem_id: str
-    user_answer: int
+    user_answer: Optional[int] = None
+    user_answers: Optional[list[int]] = None
 
 
-# ============================================================
-# 신규: 시나리오 맥락 풀 (scenario context pool)
-# ============================================================
-# 온보딩 퀴즈에서 겪었던 것과 같은 문제: "다른 시나리오로 만들어라"는
-# 지시만 주면 AI가 확률 높은(=흔한) 소재로 계속 수렴함
-# (예: 항상 "학생 성적", "쇼핑몰 장바구니"만 반복 등장).
-#
-# 게이트는 온보딩과 달리 concept_tag가 원본 문제에 이미 고정돼 있어서
-# "어떤 개념을 다룰지"가 아니라 "어떤 배경 이야기로 표현할지"를
-# 강제해야 함. 그래서 random.choice로 배경 소재 하나를 미리 정해서
-# 프롬프트에 못박아버림 — 다양성을 AI 판단이 아니라 코드가 보장
 scenario_contexts = [
     "온라인 쇼핑몰 재고 관리", "학교 성적 관리 시스템", "날씨 데이터 분석",
     "SNS 팔로워 수 집계", "게임 점수판", "은행 계좌 거래 내역",
@@ -52,8 +41,40 @@ scenario_contexts = [
 ]
 
 
+# ============================================================
+# 신규: 보기 순서 무작위 셔플
+# ============================================================
+# 실제 데이터로 확인된 편향: 13개 샘플 중 정답이 0번(첫 번째 보기)인
+# 경우가 67%, 3번(마지막 보기)은 단 한 번도 없었음. AI가 "정답을 먼저
+# 떠올리고 그걸 첫 보기로 적은 뒤 오답을 나중에 덧붙이는" 방식으로
+# 생성하다 보니 생기는 자연스러운 편향으로 추정됨.
+# "무작위로 배치해라"는 프롬프트 지시보다, 생성 후 코드가 직접
+# 섞는 게 훨씬 확실한 해결책 — 다양성 강화 때와 같은 원칙
+def shuffle_options(options: list[str], answer_indices: list[int]) -> tuple[list[str], list[int]]:
+    """
+    보기 순서를 무작위로 섞고, 정답 인덱스(들)도 새 위치에 맞게 재계산.
+
+    Parameters:
+        options: 원래 순서의 보기 리스트
+        answer_indices: 원래 순서 기준 정답 인덱스 리스트
+                         (단일 정답이면 [idx] 형태로 감싸서 전달)
+
+    Returns:
+        (섞인 보기 리스트, 새 위치 기준 정답 인덱스 리스트)
+    """
+    indexed = list(enumerate(options))
+    random.shuffle(indexed)
+
+    new_options = [opt for _, opt in indexed]
+    # 원래 인덱스 → 셔플 후 새 인덱스 매핑
+    old_to_new = {old_idx: new_idx for new_idx, (old_idx, _) in enumerate(indexed)}
+    new_answers = sorted(old_to_new[idx] for idx in answer_indices)
+
+    return new_options, new_answers
+
+
 def build_gate_prompt(problem_data: dict, language: str, scenario_context: str) -> str:
-    """problem_type에 따라 Claude에게 전달할 사용자 프롬프트를 생성한다."""
+    """기존 4지선다 유형(coding/ai_reading/ai_debugging/ai_question) 프롬프트"""
     problem_type = problem_data.get("problem_type", "coding")
     concept = problem_data["concept_tag"]
     level = problem_data["level"]
@@ -70,12 +91,10 @@ def build_gate_prompt(problem_data: dict, language: str, scenario_context: str) 
     "concept": "concept tag"
 }"""
 
-    # 신규: 모든 유형 공통으로 "이 배경 소재를 반드시 써라"는 지시를 추가
     context_instruction = f"""
 [Scenario Context - MUST USE]
 Base the new scenario on this real-world context: "{scenario_context}"
-Do not use generic or commonly seen examples (e.g. simple math, plain
-variable manipulation without a real-world story) — ground the question
+Do not use generic or commonly seen examples — ground the question
 in the given context above."""
 
     if problem_type == "ai_reading":
@@ -159,6 +178,44 @@ Level: {level}
 {output_schema}"""
 
 
+def build_tradeoff_gate_prompt(problem_data: dict, scenario_context: str) -> str:
+    """tradeoff_judgment 전용 게이트 프롬프트"""
+    requirements = problem_data.get("requirements", "")
+    concept = problem_data["concept_tag"]
+    level = problem_data["level"]
+
+    return f"""Generate a NEW trade-off judgment scenario that tests the same
+underlying decision-making skill as the original problem below, but with
+a completely different concrete situation.
+
+[Original Problem's Judgment Skill]
+{requirements}
+Concept: {concept}
+Level: {level}
+
+[Scenario Context - MUST USE]
+Ground the new scenario in this real-world context: "{scenario_context}"
+
+[Requirements]
+1. Present a short new trade-off scenario (1-2 sentences) in the "question" field,
+   followed by: "이 상황에서 반드시 고려해야 할 요소를 모두 고르세요"
+2. Provide exactly 5 options in "options": 3 genuinely correct considerations
+   for this trade-off, and 2 plausible-sounding but irrelevant distractors
+3. "correct_indices" must list the 0-based indices of the 3 correct options
+4. Include a Korean explanation of why each correct option matters and why
+   the distractors are irrelevant
+5. IMPORTANT: question, options, and explanation MUST be written in Korean
+
+[Output JSON Schema]
+{{
+    "question": "question text including the new scenario (in Korean)",
+    "options": ["option1", "option2", "option3", "option4", "option5"],
+    "correct_indices": [0, 1, 2],
+    "explanation": "explanation (in Korean)",
+    "concept": "concept tag"
+}}"""
+
+
 def build_system_prompt(problem_type: str, language: str) -> str:
     """Claude의 역할(페르소나)을 설정하는 시스템 프롬프트를 반환한다."""
     language_map = {
@@ -167,18 +224,12 @@ def build_system_prompt(problem_type: str, language: str) -> str:
     }
     lang_name = language_map.get(language, language)
 
-    # ============================================================
-    # 수정: 역할 설명에 "10년차 시니어" 페르소나 추가
-    # ============================================================
-    # 페르소나는 "문제 생성 품질"에만 관여함 (정답 판정에는 관여 안 함 —
-    # 정답 검증은 여전히 code_verifier.py의 기계적 실행 비교가 담당).
-    # 시니어 개발자 관점을 명시하면, 실무에서 실제로 마주치는 것 같은
-    # 현실적인 시나리오/함정을 더 잘 만들어내는 경향이 있음
     role_map = {
         "ai_reading": f"a senior {lang_name} engineer with 10+ years of experience, mentoring junior developers by creating realistic code-reading comprehension questions",
         "ai_debugging": f"a senior {lang_name} engineer with 10+ years of experience, creating debugging questions based on bugs commonly seen in real production code",
         "ai_question": f"a senior engineer with 10+ years of experience who teaches junior developers how to write effective prompts when working with AI coding tools",
         "coding": f"a senior {lang_name} engineer with 10+ years of experience, writing realistic coding problems grounded in real-world scenarios",
+        "tradeoff_judgment": "a senior engineer with 10+ years of experience who mentors junior developers on weighing real-world engineering trade-offs",
     }
     role = role_map.get(problem_type, f"a senior {lang_name} engineer with 10+ years of experience")
 
@@ -189,15 +240,10 @@ Always respond with valid JSON only. Never include any text outside the JSON str
 The question, options, and explanation MUST be written in Korean."""
 
 
-def _call_claude_for_gate(system_prompt: str, user_prompt: str) -> dict:
-    """
-    Claude를 호출하고 JSON으로 파싱해서 반환하는 헬퍼 함수.
-    원본 생성과 재시도 생성 둘 다 이 함수를 재사용함
-    (같은 호출+파싱 로직을 두 번 복붙하지 않기 위해 분리)
-    """
+def _call_claude_for_gate(system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> dict:
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1000,
+        max_tokens=max_tokens,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}]
     )
@@ -242,7 +288,7 @@ async def generate_gate(
     result = await db.execute(
         text("""
             SELECT title, description, concept_tag, level,
-                   problem_type, ai_code, questions
+                   problem_type, ai_code, questions, requirements
             FROM problems
             WHERE id = :id
         """),
@@ -255,45 +301,58 @@ async def generate_gate(
         raise HTTPException(status_code=404, detail="문제를 찾을 수 없습니다.")
 
     problem_data = dict(problem._mapping)
-
-    # 신규: 이번 요청에서 쓸 배경 소재를 미리 확정
+    problem_type = problem_data.get("problem_type", "coding")
     scenario_context = random.choice(scenario_contexts)
+    is_tradeoff = problem_type == "tradeoff_judgment"
 
-    system_prompt = build_system_prompt(
-        problem_data.get("problem_type", "coding"),
-        request.language
-    )
-    user_prompt = build_gate_prompt(problem_data, request.language, scenario_context)
+    system_prompt = build_system_prompt(problem_type, request.language)
 
-    try:
-        gate_data = _call_claude_for_gate(system_prompt, user_prompt)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=500,
-            detail="게이트 문제 생성 중 오류가 발생했습니다."
-        )
-
-    # 코드 실행 결과 검증 (기존 로직 유지) — 실패 시 1회 재생성
-    verify_result = verify_code_answer(
-        gate_data["question"], gate_data["options"], gate_data["answer"]
-    )
-
-    if verify_result is False:
-        print(f"[GATE] 정답 불일치 감지 — 재생성 시도 (problem_id={request.problem_id})")
+    if is_tradeoff:
+        user_prompt = build_tradeoff_gate_prompt(problem_data, scenario_context)
         try:
-            # 재시도에도 같은 배경 소재를 유지 (다시 무작위로 뽑지 않음 —
-            # 소재 문제가 아니라 정답 계산 실수였을 가능성이 높으므로)
-            retry_data = _call_claude_for_gate(system_prompt, user_prompt)
-            retry_verify = verify_code_answer(
-                retry_data["question"], retry_data["options"], retry_data["answer"]
-            )
-            if retry_verify is not False:
-                gate_data = retry_data
-            else:
-                print(f"[GATE] 재시도도 실패 — 재시도 결과로 진행 (problem_id={request.problem_id})")
-                gate_data = retry_data
+            gate_data = _call_claude_for_gate(system_prompt, user_prompt, max_tokens=1200)
         except json.JSONDecodeError:
-            print(f"[GATE] 재시도 응답 파싱 실패 — 원본 유지 (problem_id={request.problem_id})")
+            raise HTTPException(status_code=500, detail="게이트 문제 생성 중 오류가 발생했습니다.")
+        # 코드가 없는 유형이라 code_verifier는 자연스럽게 스킵됨(None 반환) — 별도 검증 없음
+
+        # 신규: 셔플은 검증 이후, DB 저장 직전에 수행
+        # (트레이드오프는 verify_code_answer 대상이 아니라서 검증 단계 없이 바로 셔플)
+        shuffled_options, shuffled_answers = shuffle_options(
+            gate_data["options"], gate_data["correct_indices"]
+        )
+        gate_data["options"] = shuffled_options
+        gate_data["correct_indices"] = shuffled_answers
+
+    else:
+        user_prompt = build_gate_prompt(problem_data, request.language, scenario_context)
+        try:
+            gate_data = _call_claude_for_gate(system_prompt, user_prompt)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="게이트 문제 생성 중 오류가 발생했습니다.")
+
+        # 코드 실행 결과 검증은 원래 AI가 생성한 순서 기준으로 먼저 수행
+        verify_result = verify_code_answer(
+            gate_data["question"], gate_data["options"], gate_data["answer"]
+        )
+        if verify_result is False:
+            print(f"[GATE] 정답 불일치 감지 — 재생성 시도 (problem_id={request.problem_id})")
+            try:
+                retry_data = _call_claude_for_gate(system_prompt, user_prompt)
+                retry_verify = verify_code_answer(
+                    retry_data["question"], retry_data["options"], retry_data["answer"]
+                )
+                gate_data = retry_data
+                if retry_verify is False:
+                    print(f"[GATE] 재시도도 실패 — 재시도 결과로 진행 (problem_id={request.problem_id})")
+            except json.JSONDecodeError:
+                print(f"[GATE] 재시도 응답 파싱 실패 — 원본 유지 (problem_id={request.problem_id})")
+
+        # 신규: 검증이 끝난 뒤(정답 위치가 확정된 뒤) 셔플
+        shuffled_options, shuffled_answers = shuffle_options(
+            gate_data["options"], [gate_data["answer"]]
+        )
+        gate_data["options"] = shuffled_options
+        gate_data["answer"] = shuffled_answers[0]
 
     await record_api_usage(user_id, "gate", db)
 
@@ -303,9 +362,7 @@ async def generate_gate(
                 INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
                 VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
                 ON CONFLICT (user_id, problem_id)
-                DO UPDATE SET
-                    gate_attempts = 1,
-                    gate_passed = FALSE
+                DO UPDATE SET gate_attempts = 1, gate_passed = FALSE
             """),
             {"user_id": user_id, "problem_id": request.problem_id}
         )
@@ -315,8 +372,7 @@ async def generate_gate(
                 INSERT INTO submissions (user_id, problem_id, code, hint_count, gate_passed, gate_attempts, time_spent_sec)
                 VALUES (:user_id, :problem_id, '', 0, FALSE, 1, 0)
                 ON CONFLICT (user_id, problem_id)
-                DO UPDATE SET
-                    gate_attempts = submissions.gate_attempts + 1
+                DO UPDATE SET gate_attempts = submissions.gate_attempts + 1
             """),
             {"user_id": user_id, "problem_id": request.problem_id}
         )
@@ -326,16 +382,17 @@ async def generate_gate(
     await db.execute(
         text("""
             INSERT INTO gate_challenges
-                (user_id, problem_id, question, options, answer, concept, explanation, expires_at)
+                (user_id, problem_id, question, options, answer, answers, concept, explanation, expires_at)
             VALUES
-                (:user_id, :problem_id, :question, CAST(:options AS JSONB), :answer, :concept, :explanation, :expires_at)
+                (:user_id, :problem_id, :question, CAST(:options AS JSONB), :answer, :answers, :concept, :explanation, :expires_at)
         """),
         {
             "user_id": user_id,
             "problem_id": request.problem_id,
             "question": gate_data["question"],
             "options": json.dumps(gate_data["options"], ensure_ascii=False),
-            "answer": gate_data["answer"],
+            "answer": None if is_tradeoff else gate_data["answer"],
+            "answers": gate_data["correct_indices"] if is_tradeoff else None,
             "concept": gate_data.get("concept", problem_data["concept_tag"]),
             "explanation": gate_data["explanation"],
             "expires_at": expires_at,
@@ -350,12 +407,11 @@ async def generate_gate(
         "question": gate_data["question"],
         "options": gate_data["options"],
         "concept": gate_data.get("concept", problem_data["concept_tag"]),
+        "multi_select": is_tradeoff,
         "usage": usage,
     }
 
 
-# POST /api/gate/verify
-# 게이트 답안 검증 + 통과 시 토큰 발급
 @router.post("/verify")
 async def verify_gate(
     request: GateVerifyRequest,
@@ -377,7 +433,7 @@ async def verify_gate(
 
     challenge_result = await db.execute(
         text("""
-            SELECT id, answer, explanation
+            SELECT id, answer, answers, explanation
             FROM gate_challenges
             WHERE user_id = :user_id
             AND problem_id = :problem_id
@@ -398,7 +454,12 @@ async def verify_gate(
 
     challenge_data = dict(challenge._mapping)
 
-    is_correct = request.user_answer == challenge_data["answer"]
+    if challenge_data["answers"] is not None:
+        correct_set = set(challenge_data["answers"])
+        user_set = set(request.user_answers or [])
+        is_correct = correct_set == user_set
+    else:
+        is_correct = request.user_answer == challenge_data["answer"]
 
     await db.execute(
         text("UPDATE gate_challenges SET used = TRUE WHERE id = :id"),
@@ -422,21 +483,11 @@ async def verify_gate(
             INSERT INTO gate_tokens (user_id, problem_id, token, expires_at)
             VALUES (:user_id, :problem_id, :token, :expires_at)
         """),
-        {
-            "user_id": user_id,
-            "problem_id": request.problem_id,
-            "token": token,
-            "expires_at": expires_at
-        }
+        {"user_id": user_id, "problem_id": request.problem_id, "token": token, "expires_at": expires_at}
     )
 
     await db.execute(
-        text("""
-            UPDATE submissions
-            SET gate_passed = TRUE
-            WHERE user_id = :user_id
-            AND problem_id = :problem_id
-        """),
+        text("UPDATE submissions SET gate_passed = TRUE WHERE user_id = :user_id AND problem_id = :problem_id"),
         {"user_id": user_id, "problem_id": request.problem_id}
     )
 

@@ -12,7 +12,7 @@ import { useState } from "react";
 type Question = {
     question: string; // 질문 내용
     choices: string[]; // 보기 배열 (4개)
-    answer: number; // 정답 인덱스 (0~3)
+    answer?: number; // 정답 인덱스 (0~3)
     explanation: string; // 해설
 };
 
