@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # Supabase JWT Secret - 토큰 직접 검증용
     SUPABASE_JWT_SECRET: str = ""
 
+    # 개발 모드 여부 (rate_limit.py에서 사용)
+    # .env에 DEV_MODE=true가 있으면 이 필드로 받아짐
+    # 기본값을 false에 둬서, .env에 이 값이 없어도(배포 환경 등) 에러 없이 동작
+    DEV_MODE: bool = False
+
     # DATABASE_URL 검증
     # 서버 시작 시 빈 값이면 즉시 에러 발생
     @field_validator("DATABASE_URL", mode="before")

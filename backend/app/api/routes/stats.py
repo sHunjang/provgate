@@ -47,30 +47,19 @@ async def get_stats(
     #   JOIN: submissions와 problems를 연결해 문제의 level 정보를 함께 사용
     stats_result = await db.execute(
         text("""
-            SELECT
-                -- 전체 완료 문제 수 (게이트 통과한 것만, 공용 문제만 집계)
-                COUNT(*) FILTER (WHERE gate_passed = TRUE) AS total_completed,
-
-                -- 난이도별 완료 문제 수
-                COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'beginner') AS beginner_completed,
-                COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'intermediate') AS intermediate_completed,
-                COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'advanced') AS advanced_completed,
-
-                -- 평균 풀이 시간 (완료 문제 기준, NULL이면 0)
-                COALESCE(AVG(s.time_spent_sec) FILTER (WHERE gate_passed = TRUE), 0) AS avg_time_sec,
-
-                -- 총 힌트 사용 횟수 (NULL이면 0)
-                COALESCE(SUM(s.hint_count), 0) AS total_hints,
-
-                -- 총 게이트 시도 횟수 (NULL이면 0)
-                COALESCE(SUM(s.gate_attempts), 0) AS total_gate_attempts
-
-            FROM submissions s
-            JOIN problems p ON s.problem_id = p.id
-            WHERE s.user_id = :user_id
-            -- 신규: AI가 개인 전용으로 생성한 문제는 "전체 진행률" 집계에서 제외
-            -- (분모인 total_result 쿼리와 기준을 통일해야 "10/9" 같은 모순이 안 생김)
-            AND p.owner_user_id IS NULL
+                SELECT
+                    COUNT(*) FILTER (WHERE gate_passed = TRUE) AS total_completed,
+                    COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'beginner') AS beginner_completed,
+                    COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'intermediate') AS intermediate_completed,
+                    COUNT(*) FILTER (WHERE gate_passed = TRUE AND p.level = 'advanced') AS advanced_completed,
+                    COALESCE(AVG(s.time_spent_sec) FILTER (WHERE gate_passed = TRUE), 0) AS avg_time_sec,
+                    COALESCE(SUM(s.hint_count), 0) AS total_hints,
+                    COALESCE(SUM(s.gate_attempts), 0) AS total_gate_attempts
+                FROM submissions s
+                JOIN problems p ON s.problem_id = p.id
+                WHERE s.user_id = :user_id
+                AND p.owner_user_id IS NULL
+                AND p.is_active = TRUE
         """),
         {"user_id": user_id}
     )
@@ -95,6 +84,7 @@ async def get_stats(
                 COUNT(*) AS all_total
             FROM problems
             WHERE owner_user_id IS NULL
+            AND is_active = TRUE
         """)
     )
     # 이 쿼리는 항상 1행을 반환 (COUNT는 행이 없어도 0을 돌려줌)

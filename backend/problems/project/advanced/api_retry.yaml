@@ -1,0 +1,43 @@
+title: "API 재시도 로직 설계"
+description: |
+    네트워크 요청이 실패했을 때 재시도할지 판단하는 기능을 만드세요.
+    코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+    정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "advanced"
+concept_tag: "함수 설계, 에러 처리"
+problem_type: "design_implementation"
+order_idx: 3
+language: "python"
+
+requirements: |
+    이번 시도의 성공 여부와 지금까지 시도한 횟수를 입력받아,
+    재시도를 계속할지 포기할지 판단하는 함수를 만드세요.
+    최대 3번까지만 시도해야 합니다.
+
+thinking_hints:
+    - "몇 번까지 재시도할까요?"
+    - "요청이 성공하면 재시도를 계속해야 할까요?"
+    - "최대 횟수에 도달하면 어떻게 처리할까요?"
+    - "재시도 사이에 대기 시간이 필요할까요? (이 문제에서는 로직만 판단합니다)"
+
+reference_points:
+    - "최대 시도 횟수(3회) 확인 여부"
+    - "성공 시 즉시 종료 처리 여부"
+    - "최대 횟수 초과 시 실패 처리 여부"
+
+starter_codes:
+    python: |
+        def solution(is_success, attempt_count):
+            # is_success: 방금 시도의 성공 여부
+            # attempt_count: 방금 시도를 포함해 지금까지 시도한 횟수
+            # 여기에 코드를 작성하세요
+            pass
+
+test_cases:
+    - input: "[false, 1]"
+      output: '{"should_retry": true, "message": "재시도 중... (1/3)"}'
+    - input: "[false, 3]"
+      output: '{"should_retry": false, "message": "재시도 횟수를 초과했습니다."}'
+    - input: "[true, 1]"
+      output: '{"should_retry": false, "message": "요청 성공"}'

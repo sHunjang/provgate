@@ -1,0 +1,33 @@
+title: "일주일 기온 데이터에서 최고·최저 찾기"
+description: |
+    일주일간의 기온 리스트를 입력받아 최고 기온과 최저 기온을
+    리스트로 반환하는 함수를 작성하세요.
+
+    예시:
+    - solution([23, 19, 25, 18, 22, 20, 24]) → [25, 18]
+    - solution([10, 15, 5]) → [15, 5]
+
+level: "beginner"
+concept_tag: "리스트, 내장함수"
+problem_type: "coding"
+order_idx: 2
+language: "python"
+
+starter_codes:
+    python: |
+        def solution(temperatures):
+            # 여기에 코드를 작성하세요
+            return
+    javascript: |
+        function solution(temperatures) {
+            // 여기에 코드를 작성하세요
+            return;
+        }
+
+test_cases:
+    - input: "[[23, 19, 25, 18, 22, 20, 24]]"
+      output: "[25, 18]"
+    - input: "[[10, 15, 5]]"
+      output: "[15, 5]"
+    - input: "[[-3, -7, -1]]"
+      output: "[-1, -7]"

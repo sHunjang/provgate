@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from datetime import datetime, timezone
 
+# settings에서 DEV_MODE를 가져오도록 통일
+# (config.py의 Settings 클래스가 이미 .env를 검증된 방식으로 읽고 있으니,
+#  os.getenv()로 따로 다시 읽는 것보다 이쪽이 일관성 있음)
+from app.core.config import settings
 
 # API 타입별 하루 최대 호출 횟수
 # 추후 유료 플랜에서는 이 값을 늘릴 수 있음
@@ -29,6 +33,16 @@ RATE_LIMITS = {
 # OKKY 등 외부 공개 시 여러 명이 공유하는 계정이라
 # 일반 유저와 동일한 제한을 적용하면 금방 소진되어 핵심 기능을 못 보고 이탈함
 GUEST_USER_ID = os.getenv("GUEST_USER_ID", "")
+
+
+# ============================================================
+# 개발 모드 여부
+# ============================================================
+# os.getenv() 직접 호출 → settings.DEV_MODE 참조
+# settings.DEV_MODE는 이미 pydantic이 "true"/"false" 문자열을
+# bool 타입으로 정확히 변환해준 값이라, 별도 문자열 비교 로직
+# (.lower() in ("true", "1"))이 필요 없어짐
+DEV_MODE = settings.DEV_MODE
 
 
 # ================================
@@ -54,6 +68,15 @@ async def check_rate_limit(
         api_type 문자열을 키로 사용해 O(1) 시간복잡도로 제한값을 조회함
         (만약 리스트로 구현했다면 매번 순회해야 해서 O(n)이 걸림)
     """
+    print(f"[DEBUG] DEV_MODE = {DEV_MODE}")  # 임시 확인용, 확인 후 지워도 됨
+    # ============================================================
+    # 개발 모드에서는 Rate Limit 자체를 건너뜀
+    # ============================================================
+    # 매번 SQL로 api_usage 기록을 지우는 대신, 개발 중에는 이 함수가
+    # 아무것도 안 하고 바로 통과하도록 함. GUEST_USER_ID 우회와 동일한
+    # "특정 조건에서 제한을 스킵"하는 패턴을 재사용함
+    if DEV_MODE:
+        return
 
     # 게스트 계정은 Rate Limit 체크 스킵
     # 여러 명이 공유하는 계정이므로 제한을 두면 OKKY 체험단이 핵심 기능을 못 봄

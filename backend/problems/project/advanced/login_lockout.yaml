@@ -1,0 +1,44 @@
+title: "로그인 시도 제한 시스템 설계"
+description: |
+    연속 로그인 실패를 추적해서 계정을 잠그는 기능을 만드세요.
+    코드를 짜기 전에, 먼저 어떤 조건과 순서로 처리할지 직접 설계해보세요.
+    정답은 없습니다 — 당신이 생각한 조건이 곧 설계입니다.
+
+level: "advanced"
+concept_tag: "함수 설계, 보안"
+problem_type: "design_implementation"
+order_idx: 2
+language: "python"
+
+requirements: |
+    이메일, 이번 시도 이전까지의 연속 실패 횟수, 이번 시도의 비밀번호
+    검증 결과를 입력받아 로그인을 허용할지 판단하는 함수를 만드세요.
+    연속 5회 실패하면 계정을 잠가야 합니다.
+
+thinking_hints:
+    - "몇 번 실패하면 잠금 처리할까요?"
+    - "이미 잠긴 계정에 로그인을 시도하면 어떻게 처리할까요?"
+    - "로그인에 성공하면 실패 횟수는 어떻게 될까요?"
+    - "잠금이 영원히 풀리지 않아도 될까요, 시간이 지나면 풀려야 할까요?"
+
+reference_points:
+    - "실패 횟수 임계값(5회) 확인 여부"
+    - "이미 잠긴 상태 확인 및 차단 여부"
+    - "성공 시 실패 카운트 초기화 여부"
+    - "잠금 해제 조건에 대한 고려 여부"
+
+starter_codes:
+    python: |
+        def solution(email, failed_count, is_success):
+            # failed_count: 이번 시도 이전까지의 연속 실패 횟수
+            # is_success: 이번 시도의 비밀번호 검증 결과 (True/False)
+            # 여기에 코드를 작성하세요
+            pass
+
+test_cases:
+    - input: '["user@test.com", 4, false]'
+      output: '{"success": false, "locked": true, "message": "로그인이 5회 실패하여 잠겼습니다."}'
+    - input: '["user@test.com", 2, true]'
+      output: '{"success": true, "locked": false, "message": "로그인 성공"}'
+    - input: '["user@test.com", 5, true]'
+      output: '{"success": false, "locked": true, "message": "계정이 잠겨있습니다."}'
