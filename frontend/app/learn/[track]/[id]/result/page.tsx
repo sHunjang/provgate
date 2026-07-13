@@ -43,7 +43,12 @@ export default function FeedbackPage() {
     const { user } = useAuth();
 
     const problemId = params.id as string;
-    // 신규: URL의 [track] 세그먼트 — "이 문제 도전하기" 이동 시 쓰진 않지만
+
+    // 원래 있던 트랙 (project, foundation, prompt 등)
+    // "문제 목록으로 돌아가기" 버튼에서 이 트랙으로 정확히 되돌아가기 위해 사용
+    const urlTrack = params.track as string;
+
+    // URL의 [track] 세그먼트 — "이 문제 도전하기" 이동 시 쓰진 않지만
     // (유사 문제는 ai_generated 트랙 고정이라) "목록으로" 버튼에서 참고용으로 보유
     const level = searchParams.get("level") || "beginner";
     const stats: Stats = JSON.parse(
@@ -270,7 +275,10 @@ export default function FeedbackPage() {
 
                 {/* 하단 버튼 */}
                 <button
-                    onClick={() => router.push("/learn")}
+                    // /learn → /learn?track=${urlTrack}
+                    // (트랙 정보 없이 이동하면 /learn이 기본값(foundation/Python 기초)으로
+                    //  초기화되는 문제가 있었음)
+                    onClick={() => router.push(`/learn?track=${urlTrack}`)}
                     className="w-full py-2.5 rounded-md text-sm font-semibold bg-[var(--bg-3)] text-[var(--text-2)] hover:bg-[var(--bg)] transition-all"
                 >
                     문제 목록으로 돌아가기
