@@ -15,10 +15,9 @@ import AIReadingSection from "@/app/components/AIReadingSection";
 import AIDebuggingSection from "@/app/components/AIDebuggingSection";
 import AIQuestionSection from "@/app/components/AIQuestionSection";
 import DesignImplementationSection from "@/app/components/DesignImplementationSection";
+import TradeoffJudgmentSection from "@/app/components/TradeoffJudgmentSection";
 
-// 신규: 공통 레벨 매핑 사용
-// 기존엔 이 파일 안에 levelColor 딕셔너리를 직접 정의했었는데,
-// 이름/색상을 한 곳(levelMeta.ts)에서 관리하도록 옮김
+// 공통 레벨 매핑 사용
 import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
 
 type TestCase = { input: string; output: string };
@@ -32,10 +31,32 @@ type Problem = {
     test_cases: TestCase[];
     starter_code: Record<string, string>;
     language: string;
-    problem_type: "coding" | "ai_reading" | "ai_debugging" | "ai_question" | "design_implementation";
+    // 수정: "tradeoff_judgment" 추가
+    // 이게 빠져있으면 TypeScript가 problem.problem_type === "tradeoff_judgment"
+    // 비교 자체를 "항상 false인 비교"로 보고 경고를 낼 수 있음
+    problem_type:
+        | "coding"
+        | "ai_reading"
+        | "ai_debugging"
+        | "ai_question"
+        | "design_implementation"
+        | "tradeoff_judgment";
     track: string;
     ai_code: string | null;
-    questions: { question: string; choices: string[]; answer: number; explanation: string }[] | null;
+    // 수정: answers?(선택적 배열) 추가
+    // 기존 4지선다 문제는 answer(단수)만 쓰고, tradeoff_judgment 문제는
+    // answers(복수)를 씀. 둘 다 선택적 필드로 두면 같은 Problem 타입
+    // 안에서 두 형태 다 표현 가능 (TradeoffJudgmentSection에 problem을
+    // 넘길 때 타입 에러가 안 나는 이유)
+    questions:
+        | {
+              question: string;
+              choices: string[];
+              answer?: number;
+              answers?: number[];
+              explanation: string;
+          }[]
+        | null;
     answer_type: "multiple_choice" | "code_edit" | "text";
     requirements?: string | null;
     thinking_hints?: string[] | null;
@@ -47,14 +68,13 @@ type TestResult = {
     results?: { passed: boolean; output: string; expected: string; message: string }[];
 };
 
-// 삭제: levelColor 딕셔너리 — 이제 LEVEL_META로 대체됨
-
 // 문제 유형별 배지 — 팔레트 3색을 순환 재사용 (팔레트 외 색을 새로 만들지 않기 위함)
 const typeColor: Record<string, { bg: string; fg: string; label: string }> = {
     ai_reading: { bg: "var(--accent3-bg)", fg: "var(--accent3)", label: "🔍 코드 읽기" },
     ai_debugging: { bg: "var(--accent2-bg)", fg: "var(--accent2)", label: "🐛 디버깅" },
     ai_question: { bg: "var(--accent3-bg)", fg: "var(--accent3)", label: "💬 AI 질문" },
     design_implementation: { bg: "var(--bg-3)", fg: "var(--text-2)", label: "✏️ 설계 과제" },
+    tradeoff_judgment: { bg: "var(--accent2-bg)", fg: "var(--accent2)", label: "⚖ 트레이드오프 판단" },
 };
 
 export default function ProblemPage() {
@@ -94,8 +114,6 @@ export default function ProblemPage() {
     const [conditionsSubmitted, setConditionsSubmitted] = useState(false);
 
     // 모바일 헤더 드롭다운 열림/닫힘
-    // 이 페이지는 SiteNav를 쓰지 않는 특수 페이지(문제 풀이 전용 자체 헤더)라
-    // 홈/learn에서 썼던 것과 같은 패턴을 이 안에서 독립적으로 구현함
     const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
     const [selectedLanguage, setSelectedLanguage] = useState<"python" | "javascript">("python");
@@ -116,7 +134,6 @@ export default function ProblemPage() {
             try {
                 setLoading(true);
 
-                // 로그인 상태면 토큰 획득
                 const supabase = createClient();
                 const {
                     data: { session },
@@ -255,16 +272,13 @@ export default function ProblemPage() {
         );
     }
 
-    // 수정: levelColor[problem.level] → LEVEL_META[problem.level as Level]
     const lvl = LEVEL_META[problem.level as Level];
     const typ = typeColor[problem.problem_type];
 
     return (
         <main className="min-h-screen bg-[var(--bg)] text-[var(--text)]">
             {/* ===== 상단 헤더 ===== */}
-            {/* 수정: relative 추가 (모바일 드롭다운의 기준점) */}
             <header className="border-b border-[var(--border-c)] px-6 py-4 flex items-center justify-between bg-[var(--bg-2)] relative">
-                {/* 왼쪽: 뒤로가기 + 제목 — 데스크탑/모바일 공통으로 항상 표시 */}
                 <div className="flex items-center gap-4 min-w-0">
                     <button
                         onClick={() => router.push("/learn")}
@@ -272,8 +286,6 @@ export default function ProblemPage() {
                     >
                         ← 목록
                     </button>
-                    {/* min-w-0 + truncate: 제목이 길 때 줄바꿈 대신 말줄임표로 잘리게 함
-                        (모바일 좁은 화면에서 제목이 여러 줄로 밀리는 걸 방지) */}
                     <div className="min-w-0">
                         <span
                             className="text-xs font-medium uppercase"
@@ -285,9 +297,6 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
-                {/* ============================================================
-                    데스크탑 전용: 언어선택 + 환경상태 + 타이머
-                    ============================================================ */}
                 <div className="hidden md:flex items-center gap-4">
                     {needsCodeExecution && (
                         <div className="flex items-center gap-2 bg-[var(--bg-3)] rounded-lg p-1">
@@ -375,9 +384,6 @@ export default function ProblemPage() {
                     </div>
                 </div>
 
-                {/* ============================================================
-                    데스크탑 전용: 유저 + 로그아웃 + 테마
-                    ============================================================ */}
                 <div className="hidden md:flex items-center gap-2">
                     {user && (
                         <span className="text-xs text-[var(--text-3)] hidden sm:block">
@@ -401,11 +407,6 @@ export default function ProblemPage() {
                     <ThemeToggle />
                 </div>
 
-                {/* ============================================================
-                    신규: 모바일 전용 — 테마 토글 + 햄버거만 표시
-                    (SiteNav의 모바일 그룹과 동일한 패턴: 테마는 항상 보이게,
-                     나머지는 햄버거 뒤로 숨김)
-                    ============================================================ */}
                 <div className="md:hidden flex items-center gap-2 flex-shrink-0">
                     <ThemeToggle />
                     <button
@@ -421,7 +422,6 @@ export default function ProblemPage() {
                     </button>
                 </div>
 
-                {/* 모바일 드롭다운 — 언어선택/환경상태/타이머/유저/로그아웃을 전부 여기로 이동 */}
                 {headerMenuOpen && (
                     <div className="md:hidden absolute top-full left-0 right-0 bg-[var(--bg-2)] border-b border-[var(--border-c)] flex flex-col p-4 gap-3 z-50">
                         {needsCodeExecution && (
@@ -547,8 +547,6 @@ export default function ProblemPage() {
                 {/* ===== 왼쪽: 문제 설명 ===== */}
                 <div className="w-full md:w-1/2 border-r border-[var(--border-c)] p-6 overflow-y-auto bg-[var(--bg-3)]">
                     <div className="flex items-center gap-2 flex-wrap">
-                        {/* lvl.label / lvl.bg / lvl.fg 는 LEVEL_META도 동일한 필드명을
-                            갖고 있어서 JSX 자체는 수정 없이 그대로 재사용 가능 */}
                         <span
                             className="text-xs px-2 py-1 rounded-full font-medium"
                             style={{ background: lvl.bg, color: lvl.fg }}
@@ -573,11 +571,19 @@ export default function ProblemPage() {
                         )}
                     </div>
 
-                    {problem.problem_type !== "design_implementation" && (
-                        <div className="mt-4 text-[var(--text-2)] whitespace-pre-wrap leading-relaxed text-sm">
-                            {problem.description}
-                        </div>
+                    {problem.problem_type === "tradeoff_judgment" && (
+                        <TradeoffJudgmentSection
+                            problem={problem}
+                            onComplete={handleAIComplete}
+                        />
                     )}
+
+                    {problem.problem_type !== "design_implementation" &&
+                        problem.problem_type !== "tradeoff_judgment" && (
+                            <div className="mt-4 text-[var(--text-2)] whitespace-pre-wrap leading-relaxed text-sm">
+                                {problem.description}
+                            </div>
+                        )}
 
                     {(problem.problem_type === "coding" || problem.problem_type === "ai_debugging") && (
                         <div className="mt-6">
@@ -752,16 +758,26 @@ export default function ProblemPage() {
 
                 {/* ===== 오른쪽: 코드 에디터 ===== */}
                 <div className="w-full md:w-1/2 flex flex-col p-6 bg-[var(--bg)]">
-                    {problem.problem_type === "ai_reading" || problem.problem_type === "ai_question" ? (
+                    {/* 수정: tradeoff_judgment도 "코드 에디터 없음" 그룹에 포함
+                        (이 유형은 체크박스로만 답을 고르고, 코드를 짤 필요가 없음) */}
+                    {problem.problem_type === "ai_reading" ||
+                    problem.problem_type === "ai_question" ||
+                    problem.problem_type === "tradeoff_judgment" ? (
                         <div className="flex-1 flex items-center justify-center">
                             <div className="text-center text-[var(--text-3)]">
                                 <div className="text-4xl mb-4">
-                                    {problem.problem_type === "ai_reading" ? "🔍" : "💬"}
+                                    {problem.problem_type === "ai_reading"
+                                        ? "🔍"
+                                        : problem.problem_type === "tradeoff_judgment"
+                                          ? "⚖"
+                                          : "💬"}
                                 </div>
                                 <p className="text-sm">
                                     {problem.problem_type === "ai_reading"
                                         ? "왼쪽 코드를 읽고 답을 선택하세요"
-                                        : "왼쪽에서 가장 좋은 프롬프트를 선택하세요"}
+                                        : problem.problem_type === "tradeoff_judgment"
+                                          ? "왼쪽에서 고려할 요소를 선택하세요"
+                                          : "왼쪽에서 가장 좋은 프롬프트를 선택하세요"}
                                 </p>
                             </div>
                         </div>
@@ -906,7 +922,6 @@ export default function ProblemPage() {
                                 return;
                             }
 
-                            // JWT 토큰 획득 (stats 페이지와 동일 패턴)
                             const supabase = createClient();
                             const {
                                 data: { session },
@@ -930,7 +945,6 @@ export default function ProblemPage() {
                                     },
                                     body: JSON.stringify({
                                         problem_id: problem.id,
-                                        // email: user?.email || "",
                                         token: gateToken ?? null,
                                         code: submitCode,
                                         time_spent_sec: timeSpentSec,

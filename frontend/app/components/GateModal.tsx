@@ -32,6 +32,7 @@ type GateQuestion = {
     answer: number;
     explanation: string;
     concept: string;
+    multiSelect?: boolean;
 };
 
 export default function GateModal({ isOpen, problemId, language, onPass, onClose }: GateModalProps) {
@@ -65,6 +66,9 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
 
     // 한도 초과(429) 여부
     const [rateLimited, setRateLimited] = useState(false);
+
+    // 다중 선택용
+    const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
 
     // 게이트 문제 생성 API 호출
     const fetchGateQuestion = async () => {
@@ -112,7 +116,8 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
             if (!res.ok) throw new Error("게이트 문제 생성 실패");
 
             const data = await res.json();
-            setGateQuestion(data);
+            setGateQuestion({ ...data, multiSelect: data.multi_select });
+            setSelectedAnswers([]);
 
             // 사용 현황 저장(응답에 usage가 있을 때만)
             if (data.usage) {
@@ -127,7 +132,11 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
 
     // 답안 제출 핸들러
     const handleSubmit = async () => {
-        if (selectedAnswer === null || !gateQuestion) return;
+        // multiSelect일 때는 selectedAnswer(단수)가 아니라
+        // selectedAnswers(복수)가 채워지므로, 조건을 분기해서 확인
+        const hasSelection = gateQuestion?.multiSelect ? selectedAnswers.length > 0 : selectedAnswer !== null;
+
+        if (!hasSelection || !gateQuestion) return;
 
         setLoading(true);
 
@@ -146,14 +155,13 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
 
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gate/verify`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    problem_id: problemId,
-                    user_answer: selectedAnswer,
-                }),
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                // 신규: multiSelect면 user_answers(배열), 아니면 user_answer(단일)
+                body: JSON.stringify(
+                    gateQuestion.multiSelect
+                        ? { problem_id: problemId, user_answers: selectedAnswers }
+                        : { problem_id: problemId, user_answer: selectedAnswer },
+                ),
             });
 
             if (!res.ok) throw new Error("답안 검증 실패");
@@ -294,38 +302,65 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
 
                                     {/* 보기 */}
                                     <div className="space-y-3 mb-6">
-                                        {gateQuestion.options.map((option, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setSelectedAnswer(idx)}
-                                                className="w-full p-3 rounded-lg border-2 text-left text-sm transition-all"
-                                                // 수정: indigo → var(--accent) (선택된 보기는 그린 계열로 통일)
-                                                style={
-                                                    selectedAnswer === idx
-                                                        ? {
-                                                              borderColor: "var(--accent)",
-                                                              background: "var(--accent-bg)",
-                                                              color: "var(--text)",
-                                                          }
-                                                        : {
-                                                              borderColor: "var(--border-c)",
-                                                              background: "var(--bg-3)",
-                                                              color: "var(--text-2)",
-                                                          }
-                                                }
-                                            >
-                                                {option}
-                                            </button>
-                                        ))}
+                                        {gateQuestion.options.map((option, idx) => {
+                                            const isChecked = gateQuestion.multiSelect
+                                                ? selectedAnswers.includes(idx)
+                                                : selectedAnswer === idx;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        // 신규: multiSelect면 배열 토글, 아니면 단일 선택
+                                                        if (gateQuestion.multiSelect) {
+                                                            setSelectedAnswers((prev) =>
+                                                                prev.includes(idx)
+                                                                    ? prev.filter((i) => i !== idx)
+                                                                    : [...prev, idx],
+                                                            );
+                                                        } else {
+                                                            setSelectedAnswer(idx);
+                                                        }
+                                                    }}
+                                                    className="w-full p-3 rounded-lg border-2 text-left text-sm transition-all"
+                                                    style={
+                                                        isChecked
+                                                            ? {
+                                                                  borderColor: "var(--accent)",
+                                                                  background: "var(--accent-bg)",
+                                                                  color: "var(--text)",
+                                                              }
+                                                            : {
+                                                                  borderColor: "var(--border-c)",
+                                                                  background: "var(--bg-3)",
+                                                                  color: "var(--text-2)",
+                                                              }
+                                                    }
+                                                >
+                                                    {option}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
 
                                     {/* 제출 버튼 */}
                                     <button
                                         onClick={handleSubmit}
-                                        disabled={selectedAnswer === null}
+                                        disabled={
+                                            gateQuestion.multiSelect
+                                                ? selectedAnswers.length === 0
+                                                : selectedAnswer === null
+                                        }
                                         className="w-full py-3 rounded-xl font-semibold transition-all"
                                         style={
-                                            selectedAnswer !== null
+                                            // 수정: selectedAnswer !== null 단독 조건 → disabled와 동일한
+                                            // 로직으로 통일. multiSelect일 때는 selectedAnswer가 항상 null이라
+                                            // 이 조건이 항상 false가 되어, 실제로는 클릭 가능한데도(disabled=false)
+                                            // 계속 비활성화된 회색 스타일로 보이는 문제가 있었음
+                                            (
+                                                gateQuestion.multiSelect
+                                                    ? selectedAnswers.length > 0
+                                                    : selectedAnswer !== null
+                                            )
                                                 ? { background: "var(--btn-bg)", color: "var(--btn-text)" }
                                                 : {
                                                       background: "var(--bg-3)",
