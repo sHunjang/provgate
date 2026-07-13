@@ -46,7 +46,7 @@ export default function TradeoffJudgmentSection({ problem, onComplete }: Props) 
     // 수정: question.answers → correctAnswers
     const correctSet = new Set(correctAnswers);
     const selectedSet = new Set(selected);
-    const isExactMatch = correctSet.size === selectedSet.size && [...correctSet].every((v) => selectedSet.has(v));
+    const isExactMatch = correctSet.size === selectedSet.size && Array.from(correctSet).every((v) => selectedSet.has(v));
 
     return (
         <div className="mt-6">
