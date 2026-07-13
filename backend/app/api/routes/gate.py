@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import anthropic
 import json
+import random
 import secrets
 from datetime import datetime, timedelta
 
@@ -27,20 +28,31 @@ class GateGenerateRequest(BaseModel):
     is_first: bool = False
 
 
-# ============================================================
-# 수정: GateVerifyRequest에서 정답 관련 필드 전부 삭제
-# ============================================================
-# 기존엔 gate_question, gate_options, correct_answer까지 프론트가
-# 다시 보내야 했음(=서버가 정답을 프론트에게 넘겼다가 돌려받는 구조).
-# 이제는 "사용자가 몇 번을 선택했는지"만 보내면 되고, 정답이 맞는지는
-# 서버가 DB에 저장해둔 값으로 직접 확인함 — 클라이언트는 정답을
-# 알 수도, 조작할 수도 없어짐
 class GateVerifyRequest(BaseModel):
     problem_id: str
     user_answer: int
 
 
-def build_gate_prompt(problem_data: dict, language: str) -> str:
+# ============================================================
+# 신규: 시나리오 맥락 풀 (scenario context pool)
+# ============================================================
+# 온보딩 퀴즈에서 겪었던 것과 같은 문제: "다른 시나리오로 만들어라"는
+# 지시만 주면 AI가 확률 높은(=흔한) 소재로 계속 수렴함
+# (예: 항상 "학생 성적", "쇼핑몰 장바구니"만 반복 등장).
+#
+# 게이트는 온보딩과 달리 concept_tag가 원본 문제에 이미 고정돼 있어서
+# "어떤 개념을 다룰지"가 아니라 "어떤 배경 이야기로 표현할지"를
+# 강제해야 함. 그래서 random.choice로 배경 소재 하나를 미리 정해서
+# 프롬프트에 못박아버림 — 다양성을 AI 판단이 아니라 코드가 보장
+scenario_contexts = [
+    "온라인 쇼핑몰 재고 관리", "학교 성적 관리 시스템", "날씨 데이터 분석",
+    "SNS 팔로워 수 집계", "게임 점수판", "은행 계좌 거래 내역",
+    "도서관 대출 기록", "택배 배송 추적", "카페 주문 관리",
+    "헬스장 회원 출석 체크", "영화 예매 시스템", "레시피 재료 계산",
+]
+
+
+def build_gate_prompt(problem_data: dict, language: str, scenario_context: str) -> str:
     """problem_type에 따라 Claude에게 전달할 사용자 프롬프트를 생성한다."""
     problem_type = problem_data.get("problem_type", "coding")
     concept = problem_data["concept_tag"]
@@ -58,6 +70,14 @@ def build_gate_prompt(problem_data: dict, language: str) -> str:
     "concept": "concept tag"
 }"""
 
+    # 신규: 모든 유형 공통으로 "이 배경 소재를 반드시 써라"는 지시를 추가
+    context_instruction = f"""
+[Scenario Context - MUST USE]
+Base the new scenario on this real-world context: "{scenario_context}"
+Do not use generic or commonly seen examples (e.g. simple math, plain
+variable manipulation without a real-world story) — ground the question
+in the given context above."""
+
     if problem_type == "ai_reading":
         ai_code = problem_data.get("ai_code", "")
         return f"""Generate a gate verification question based on the original problem below.
@@ -67,6 +87,7 @@ Concept: {concept}
 Level: {level}
 AI Code:
 {ai_code}
+{context_instruction}
 
 [Requirements]
 1. Write completely NEW code using the SAME concept ({concept})
@@ -87,6 +108,7 @@ Concept: {concept}
 Level: {level}
 Original Buggy Code:
 {ai_code}
+{context_instruction}
 
 [Requirements]
 1. Write NEW buggy code with the SAME concept ({concept}) but a DIFFERENT scenario
@@ -107,6 +129,7 @@ Original Buggy Code:
 Title: {title}
 Concept: {concept}
 Level: {level}{original_q}
+{context_instruction}
 
 [Requirements]
 1. Create a scenario where the user asks an AI about the concept "{concept}"
@@ -124,6 +147,7 @@ Title: {title}
 Description: {description}
 Concept: {concept}
 Level: {level}
+{context_instruction}
 
 [Requirements]
 1. Test the SAME concept but with a DIFFERENT scenario
@@ -138,18 +162,25 @@ Level: {level}
 def build_system_prompt(problem_type: str, language: str) -> str:
     """Claude의 역할(페르소나)을 설정하는 시스템 프롬프트를 반환한다."""
     language_map = {
-        "python": "Python", "javascript": "JavaScript", "java": "Java",
+        "python": "Python", "javascript": "JavaScript", "java": "Java", "c": "C",
         "cpp": "C++", "csharp": "C#",
     }
     lang_name = language_map.get(language, language)
 
+    # ============================================================
+    # 수정: 역할 설명에 "10년차 시니어" 페르소나 추가
+    # ============================================================
+    # 페르소나는 "문제 생성 품질"에만 관여함 (정답 판정에는 관여 안 함 —
+    # 정답 검증은 여전히 code_verifier.py의 기계적 실행 비교가 담당).
+    # 시니어 개발자 관점을 명시하면, 실무에서 실제로 마주치는 것 같은
+    # 현실적인 시나리오/함정을 더 잘 만들어내는 경향이 있음
     role_map = {
-        "ai_reading": f"an expert {lang_name} educator who creates code-reading comprehension questions",
-        "ai_debugging": f"an expert {lang_name} educator who creates debugging questions",
-        "ai_question": f"an expert AI prompting educator who teaches how to write effective prompts",
-        "coding": f"an expert {lang_name} coding educator",
+        "ai_reading": f"a senior {lang_name} engineer with 10+ years of experience, mentoring junior developers by creating realistic code-reading comprehension questions",
+        "ai_debugging": f"a senior {lang_name} engineer with 10+ years of experience, creating debugging questions based on bugs commonly seen in real production code",
+        "ai_question": f"a senior engineer with 10+ years of experience who teaches junior developers how to write effective prompts when working with AI coding tools",
+        "coding": f"a senior {lang_name} engineer with 10+ years of experience, writing realistic coding problems grounded in real-world scenarios",
     }
-    role = role_map.get(problem_type, f"an expert {lang_name} coding educator")
+    role = role_map.get(problem_type, f"a senior {lang_name} engineer with 10+ years of experience")
 
     return f"""You are {role}.
 Generate a verification question that tests the same concept as the original problem
@@ -225,11 +256,14 @@ async def generate_gate(
 
     problem_data = dict(problem._mapping)
 
+    # 신규: 이번 요청에서 쓸 배경 소재를 미리 확정
+    scenario_context = random.choice(scenario_contexts)
+
     system_prompt = build_system_prompt(
         problem_data.get("problem_type", "coding"),
         request.language
     )
-    user_prompt = build_gate_prompt(problem_data, request.language)
+    user_prompt = build_gate_prompt(problem_data, request.language, scenario_context)
 
     try:
         gate_data = _call_claude_for_gate(system_prompt, user_prompt)
@@ -247,6 +281,8 @@ async def generate_gate(
     if verify_result is False:
         print(f"[GATE] 정답 불일치 감지 — 재생성 시도 (problem_id={request.problem_id})")
         try:
+            # 재시도에도 같은 배경 소재를 유지 (다시 무작위로 뽑지 않음 —
+            # 소재 문제가 아니라 정답 계산 실수였을 가능성이 높으므로)
             retry_data = _call_claude_for_gate(system_prompt, user_prompt)
             retry_verify = verify_code_answer(
                 retry_data["question"], retry_data["options"], retry_data["answer"]
@@ -285,14 +321,6 @@ async def generate_gate(
             {"user_id": user_id, "problem_id": request.problem_id}
         )
 
-    # ============================================================
-    # 신규: 정답을 gate_challenges 테이블에 저장
-    # ============================================================
-    # 이 문제(question/options/answer/explanation/concept)를 DB에
-    # 저장해두고, /verify에서는 이 저장된 값과만 비교함.
-    # expires_at: 24시간 뒤 만료 — gate_tokens와 동일한 유효기간 정책
-    # (사용자가 문제를 받아놓고 하루 넘게 방치하다 답하는 극단적
-    #  케이스까지 굳이 허용할 필요는 없다고 판단)
     expires_at = datetime.utcnow() + timedelta(hours=24)
 
     await db.execute(
@@ -318,15 +346,6 @@ async def generate_gate(
 
     usage = await get_usage_status(user_id, "gate", db)
 
-    # ============================================================
-    # 수정: 응답에서 "answer"(정답 인덱스)와 "explanation"(해설) 제거
-    # ============================================================
-    # explanation도 함께 뺀 이유: 대부분의 해설이 "정답은 O번, 왜냐하면..."
-    # 형태로 시작하기 때문에, 해설 텍스트 자체가 정답을 사실상 알려줌.
-    # 해설은 /verify가 채점을 마친 뒤 결과와 함께 내려줌 (기존에도
-    # verify 응답에 explanation이 없었으니, 프론트에서 해설을 보여주고
-    # 싶다면 이 부분은 별도로 설계 논의가 필요함 — 지금은 우선
-    # "문제 풀기 전에 정답이 새어나가지 않는 것"에 집중)
     return {
         "question": gate_data["question"],
         "options": gate_data["options"],
@@ -356,12 +375,6 @@ async def verify_gate(
 
     user_id = user._mapping["id"]
 
-    # ============================================================
-    # 신규: DB에서 가장 최근에 저장된 게이트 문제(정답 포함) 조회
-    # ============================================================
-    # "가장 최근 것"을 쓰는 이유: 사용자가 재시도할 때마다 /generate가
-    # 새 challenge를 계속 INSERT하므로(재사용 안 함), 지금 화면에
-    # 보이는 문제는 항상 가장 최근에 생성된 것이어야 함
     challenge_result = await db.execute(
         text("""
             SELECT id, answer, explanation
@@ -378,8 +391,6 @@ async def verify_gate(
     challenge = challenge_result.fetchone()
 
     if not challenge:
-        # 저장된 challenge가 없으면(만료됐거나, generate 없이 verify를
-        # 직접 호출하는 등 비정상 접근) 검증 자체가 불가능하므로 오답 처리
         raise HTTPException(
             status_code=400,
             detail="게이트 문제를 먼저 생성해주세요. (만료되었거나 순서가 잘못됐습니다)"
@@ -387,16 +398,8 @@ async def verify_gate(
 
     challenge_data = dict(challenge._mapping)
 
-    # ============================================================
-    # 핵심 변경: 서버가 저장해둔 정답과 직접 비교
-    # ============================================================
-    # 기존엔 request.correct_answer(프론트가 보낸 값)와 비교했는데,
-    # 이제는 challenge_data["answer"](서버 DB에 저장된, 클라이언트가
-    # 한 번도 본 적 없는 값)와 비교함
     is_correct = request.user_answer == challenge_data["answer"]
 
-    # 사용한 challenge는 재사용 방지를 위해 used = TRUE로 표시
-    # (정답이든 오답이든 한 번 답변한 challenge는 다시 채점에 쓰지 않음)
     await db.execute(
         text("UPDATE gate_challenges SET used = TRUE WHERE id = :id"),
         {"id": challenge_data["id"]}
@@ -408,7 +411,6 @@ async def verify_gate(
             "passed": False,
             "message": "오답입니다. 다시 시도하세요.",
             "token": None,
-            # 신규: 오답이어도 해설은 보여줄 수 있음 (학습 목적)
             "explanation": challenge_data["explanation"],
         }
 
