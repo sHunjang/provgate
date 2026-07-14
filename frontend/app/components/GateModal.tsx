@@ -13,9 +13,6 @@ type GateModalProps = {
     // 원본 문제 ID
     problemId: string;
 
-    // 사용자 이메일
-    email: string;
-
     language: string;
 
     // 게이트 통과 시 호출되는 콜백 (토큰 전달)

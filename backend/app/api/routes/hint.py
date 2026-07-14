@@ -9,6 +9,7 @@ import anthropic
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/api/hint", tags=["hint"])
 
@@ -29,9 +30,6 @@ class HintRequest(BaseModel):
     # 단계가 높을수록 더 구체적인 힌트 제공
     hint_step: int
 
-    # 사용자 이메일 - 힌트 사용 횟수 기록용
-    email: str
-
     # 언어 추가 (기본값 python)
     language: str = "python"
 
@@ -40,8 +38,11 @@ class HintRequest(BaseModel):
 @router.post("")
 async def generate_hint(
     request: HintRequest,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    
+    email = current_user["email"]
     
     # 힌트 단계 검증
     if request.hint_step not in [1, 2, 3]:
@@ -54,7 +55,7 @@ async def generate_hint(
     # email -> user_id 변환
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     user = user_result.fetchone()
 
@@ -173,29 +174,43 @@ Rules:
         ""
     )
 
+    # Claude 응답의 실측 토큰 사용량을 기록에 같이 넘김
+    # message.usage는 anthropic SDK가 API 응답 헤더에서 파싱해주는 값이라서
+    # 따로 토큰 수를 세는 로직을 짤 필요가 없음
+    await record_api_usage(
+        user_id, "hint", db,
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+    )
+
     # Rate Limit 사용 기록 저장
     # check_rate_limit 통과 후 실제 사용 기록을 api_usage 테이블에 저장
     # Claude API 호출 후에 넣는 이유: API 호출이 실패하면 횟수를 차감하면 안 되기 때문
-    await record_api_usage(user_id, "hint", db)
+    # Claude 응답의 실측 토큰 사용량을 기록에 같이 넘김
+    # message.usage는 anthropic SDK가 API 응답 헤더에서 파싱해주는 값이라서
+    # 따로 토큰 수를 세는 로직을 짤 필요가 없음
+    await record_api_usage(
+        user_id, "hint", db,
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+    )
 
-    # 힌트 사용 횟수 DB 기록
-    # submissions 테이블에 hint_count 업데이트
+    # (기존엔 서브쿼리로 email→id를 다시 조회했는데, 이미 위에서
+    #  user_id를 구했으므로 그대로 쓰면 쿼리도 하나 줄어듦)
     await db.execute(
         text("""
-INSERT INTO submissions (user_id, problem_id, code, hint_count)
-SELECT u.id, :problem_id, :code, 1
-FROM users u
-WHERE u.email = :email
-ON CONFLICT (user_id, problem_id)
-DO UPDATE SET
-    hint_count = submissions.hint_count + 1,
-    code = :code
-"""),
-    {
-        "problem_id": request.problem_id,
-        "code": request.current_code,
-        "email": request.email,
-    }
+            INSERT INTO submissions (user_id, problem_id, code, hint_count)
+            VALUES (:user_id, :problem_id, :code, 1)
+            ON CONFLICT (user_id, problem_id)
+            DO UPDATE SET
+                hint_count = submissions.hint_count + 1,
+                code = :code
+        """),
+        {
+            "user_id": user_id,
+            "problem_id": request.problem_id,
+            "code": request.current_code,
+        }
     )
 
     await db.commit()

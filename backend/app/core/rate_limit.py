@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from datetime import datetime, timezone
+from typing import Optional
 
 # settings에서 DEV_MODE를 가져오도록 통일
 # (config.py의 Settings 클래스가 이미 .env를 검증된 방식으로 읽고 있으니,
@@ -45,6 +46,15 @@ GUEST_USER_ID = os.getenv("GUEST_USER_ID", "")
 DEV_MODE = settings.DEV_MODE
 
 
+# ============================================================
+# Claude Sonnet 추정 단가 (백만 토큰당 USD)
+# ============================================================
+# Anthropic 공식 가격 페이지 기준이 아니라 사업 원가 추정용 상수라,
+# 실제 계약/가격 정책이 바뀌면 이 값만 갱신하면 됨 — 코드 곳곳에
+# 하드코딩하지 않고 한 곳에 모아둔 이유
+PRICE_PER_INPUT_TOKEN_USD = 3.0 / 1_000_000
+PRICE_PER_OUTPUT_TOKEN_USD = 15.0 / 1_000_000
+
 # ================================
 # Rate Limits 초과 여부 확인 함수
 # ================================
@@ -68,7 +78,7 @@ async def check_rate_limit(
         api_type 문자열을 키로 사용해 O(1) 시간복잡도로 제한값을 조회함
         (만약 리스트로 구현했다면 매번 순회해야 해서 O(n)이 걸림)
     """
-    print(f"[DEBUG] DEV_MODE = {DEV_MODE}")  # 임시 확인용, 확인 후 지워도 됨
+    # print(f"[DEBUG] DEV_MODE = {DEV_MODE}")  # 임시 확인용, 확인 후 지워도 됨
     # ============================================================
     # 개발 모드에서는 Rate Limit 자체를 건너뜀
     # ============================================================
@@ -133,24 +143,37 @@ async def record_api_usage(
     user_id: str,
     api_type: str,
     db: AsyncSession,
+    # 신규: 선택적 토큰 파라미터 — 기본값 None으로 둬서
+    # 아직 이 값을 안 넘기는 호출부(있다면)가 있어도 깨지지 않게 함
+    input_tokens: Optional[int] = None,
+    output_tokens: Optional[int] = None,
 ) -> None:
     """
     API 사용 기록 저장
     check_rate_limit 통과 후 반드시 호출해야 함
 
-    동작 방식:
-        api_usage 테이블에 현재 시간과 함께 사용 기록 INSERT
-        used_at의 CURRENT_DATE 비교로 자정 자동 리셋
+    input_tokens/output_tokens가 주어지면 이번 호출의 실측
+    원가(cost_usd)를 계산해서 같이 저장함. Claude 응답 객체의
+    message.usage에서 이 값을 뽑아 그대로 넘기면 됨
     """
+    cost_usd = None
+    if input_tokens is not None and output_tokens is not None:
+        cost_usd = (
+            input_tokens * PRICE_PER_INPUT_TOKEN_USD
+            + output_tokens * PRICE_PER_OUTPUT_TOKEN_USD
+        )
 
     await db.execute(
         text("""
-            INSERT INTO api_usage (user_id, api_type)
-            VALUES (:user_id, :api_type)
+            INSERT INTO api_usage (user_id, api_type, input_tokens, output_tokens, cost_usd)
+            VALUES (:user_id, :api_type, :input_tokens, :output_tokens, :cost_usd)
         """),
         {
             "user_id": user_id,
             "api_type": api_type,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost_usd,
         }
     )
 

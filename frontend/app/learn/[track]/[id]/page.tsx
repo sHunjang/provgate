@@ -206,14 +206,31 @@ export default function ProblemPage() {
         const nextStep = hintStep + 1;
         setHintLoading(true);
         try {
+            // 토큰 획득 (게이트/제출 등 다른 API 호출과 동일한 패턴)
+            const supabase = createClient();
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                setHintLoading(false);
+                router.push("/auth/login");
+                return;
+            }
+
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/hint`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    // 신규: Authorization 헤더 추가
+                    Authorization: `Bearer ${token}`,
+                },
                 body: JSON.stringify({
                     problem_id: problem.id,
                     current_code: code,
                     hint_step: nextStep,
-                    email: user?.email || "",
+                    // 삭제: email: user?.email || "",
                     language: selectedLanguage,
                 }),
             });
@@ -749,7 +766,6 @@ export default function ProblemPage() {
                             problem={problem}
                             code={code}
                             executionResult={testResult}
-                            email={user?.email || ""}
                             onConditionsSubmit={() => setConditionsSubmitted(true)}
                             onComplete={() => handleAIComplete()}
                         />
@@ -973,7 +989,6 @@ export default function ProblemPage() {
             <GateModal
                 isOpen={gateOpen}
                 problemId={problem.id}
-                email={user?.email || ""}
                 language={selectedLanguage}
                 onPass={(token) => {
                     setGateToken(token);
