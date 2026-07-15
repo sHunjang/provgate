@@ -13,9 +13,6 @@ type GateModalProps = {
     // 원본 문제 ID
     problemId: string;
 
-    // 사용자 이메일
-    email: string;
-
     language: string;
 
     // 게이트 통과 시 호출되는 콜백 (토큰 전달)
@@ -47,12 +44,17 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
         passed: boolean;
         message: string;
         token: string | null;
+        explanation?: string;
     } | null>(null);
 
     // 로딩 상태
     const [loading, setLoading] = useState(false);
 
-    // 시도 횟수
+    // 사용자가 '오답'을 낸 횟수 카운터 (0~3)
+    // ⚠️ 주의: 이건 백엔드 gate.py의 AI 재생성 재시도(최대 3회, 정답 개수 검증 실패 시)와는
+    // 완전히 다른 개념임. 여기 attempts는 "사용자가 문제를 틀린 횟수"이고,
+    // 백엔드 쪽 재시도는 "AI가 만든 문제 자체가 깨졌을 때 서버 내부에서 다시 생성하는 횟수"임.
+    // 우연히 둘 다 상한이 3이라 헷갈리기 쉬우니, 코드 수정 시 절대 혼동하지 말 것.
     const [attempts, setAttempts] = useState(0);
 
     // Rate Limit 사용 현황 (백엔드 usage 필드 저장)
@@ -70,11 +72,16 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
     // 다중 선택용
     const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
 
+    // 게이트 문제 생성 실패 시 사용자에게 보여줄 에러 메세지
+    // null이면 에러 없음, 문자열이면 화면에 표시
+    const [fetchError, setFetchError] = useState<string | null>(null);
+
     // 게이트 문제 생성 API 호출
     const fetchGateQuestion = async () => {
         setLoading(true);
         setSelectedAnswer(null);
         setResult(null);
+        setFetchError(null); // 재시도 시 이전 에러 메시지 초기화
 
         try {
             // JWT 토큰 획득
@@ -113,6 +120,12 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                 return;
             }
 
+            // Rate Limit 한도 외 모든 실패(500, 네트워크 오류 등) - 원인 불문하고 동일하게 안내
+            if (!res.ok) {
+                setFetchError("문제를 불러오지 못했어요. 다시 시도해주세요.");
+                return;
+            }
+
             if (!res.ok) throw new Error("게이트 문제 생성 실패");
 
             const data = await res.json();
@@ -125,6 +138,7 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
             }
         } catch (err) {
             console.error(err);
+            setFetchError("네트워크 오류가 발생했어요. 다시 시도해주세요.");
         } finally {
             setLoading(false);
         }
@@ -253,7 +267,7 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                             )}
 
                             {/* 초기 상태 - 문제 생성 전 */}
-                            {!gateQuestion && !loading && (
+                            {!gateQuestion && !loading && !fetchError && (
                                 <div className="text-center py-8">
                                     <div className="text-5xl mb-4">🧠</div>
                                     <p className="text-[var(--text-2)] mb-6 text-sm">
@@ -261,13 +275,27 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                                         <br />
                                         이제 진짜 이해했는지 확인해볼까요?
                                     </p>
-                                    {/* 수정: bg-indigo-600 → var(--btn-bg) (사이트 공통 주요 버튼 색) */}
                                     <button
                                         onClick={fetchGateQuestion}
                                         className="px-8 py-3 rounded-xl font-semibold transition-all"
                                         style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
                                     >
                                         게이트 문제 받기
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* 신규: 문제 생성 실패 상태 — 원인을 숨기지 않고 재시도 버튼 제공 */}
+                            {!gateQuestion && !loading && fetchError && (
+                                <div className="text-center py-8">
+                                    <div className="text-5xl mb-4">⚠️</div>
+                                    <p className="text-sm mb-6 text-red-500">{fetchError}</p>
+                                    <button
+                                        onClick={fetchGateQuestion}
+                                        className="px-8 py-3 rounded-xl font-semibold transition-all"
+                                        style={{ background: "var(--btn-bg)", color: "var(--btn-text)" }}
+                                    >
+                                        다시 시도하기
                                     </button>
                                 </div>
                             )}
@@ -387,10 +415,10 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                                     </p>
 
                                     {/* 정답 해설 */}
-                                    {gateQuestion && (
+                                    {result?.explanation && (
                                         <div className="bg-[var(--bg-3)] rounded-lg p-4 mb-4 text-left">
                                             <p className="text-xs text-[var(--text-3)] mb-1">해설</p>
-                                            <p className="text-sm text-[var(--text-2)]">{gateQuestion.explanation}</p>
+                                            <p className="text-sm text-[var(--text-2)]">{result.explanation}</p>
                                         </div>
                                     )}
 

@@ -22,6 +22,7 @@ import json
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import check_rate_limit, record_api_usage
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/api/design", tags=["design"])
 
@@ -53,23 +54,23 @@ class DesignFeedbackRequest(BaseModel):
     #   프론트에서 JSON.stringify()로 직렬화 → 백엔드에서 다시 파싱해서 사용
     execution_result: str
 
-    # 사용자 이메일 - Rate Limit 체크 및 제출 기록용
-    email: str
-
 
 # POST /api/design/feedback
 @router.post("/feedback")
 async def generate_design_feedback(
     request: DesignFeedbackRequest,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    
+    email = current_user["email"]
 
     # -- 1단계: 이메일로 user_id 조회 --
     # hint.py와 동일한 패턴: Rate Limit은 user_id 기준으로 체크하므로
     # 이메일을 먼저 user_id로 변환해야 함
     user_result = await db.execute(
         text("SELECT id FROM users WHERE email = :email"),
-        {"email": request.email}
+        {"email": email}
     )
     user = user_result.fetchone()
 
@@ -194,8 +195,7 @@ Rules:
     # 담을 수 있는 리스트라서, 그중 TextBlock 타입만 골라냄
     # next(..., ""): 제너레이터에서 첫 번째 값을 꺼내고, 없으면 빈 문자열 기본값
     feedback_text = next(
-        (block.text for block in message.content
-         if isinstance(block, anthropic.types.TextBlock)),
+        (block.text for block in message.content if isinstance(block, anthropic.types.TextBlock)),
         ""
     )
 
@@ -204,7 +204,12 @@ Rules:
     # check_rate_limit 통과 + Claude API 호출 성공 후에 기록
     # (API 호출이 실패했는데 횟수를 차감하면 학습자에게 불리하므로,
     #  반드시 성공한 뒤에 기록하는 순서를 지킴 — hint.py와 동일한 원칙)
-    await record_api_usage(user_id, "design_feedback", db)
+    # 토큰 사용량 기록
+    await record_api_usage(
+        user_id, "design_feedback", db,
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+    )
 
 
     # -- 7단계: submissions 테이블에 제출 기록 저장 --
@@ -216,9 +221,9 @@ Rules:
             INSERT INTO submissions (
                 user_id, problem_id, code, my_conditions, execution_result
             )
-            SELECT u.id, :problem_id, :code, :my_conditions, CAST(:execution_result AS JSONB)
-            FROM users u
-            WHERE u.email = :email
+            VALUES (
+                :user_id, :problem_id, :code, :my_conditions, CAST(:execution_result AS JSONB)
+            )
             ON CONFLICT (user_id, problem_id)
             DO UPDATE SET
                 code = EXCLUDED.code,
@@ -226,11 +231,11 @@ Rules:
                 execution_result = EXCLUDED.execution_result
         """),
         {
+            "user_id": user_id,
             "problem_id": request.problem_id,
             "code": request.code,
             "my_conditions": request.my_conditions,
             "execution_result": request.execution_result,
-            "email": request.email,
         }
     )
 

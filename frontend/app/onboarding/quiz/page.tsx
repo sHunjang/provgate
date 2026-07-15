@@ -35,6 +35,34 @@ type Question = {
     explanation: string;
 };
 
+// ============================================================
+// 신규: 문제 텍스트에서 마크다운 코드블록 마커를 벗겨내는 함수
+// ============================================================
+// 왜 별도 함수로 뺐나:
+//   기존엔 JSX 안에서 .replace(/```python/g, "").replace(/```/g, "") 처럼
+//   두 번만 치환했다. 그런데 AI가 코드블록을 항상 ```python 형태로만 주는 게
+//   아니라서(```py, ```Python, 또는 ``` 다음 줄에 "python"만 따로 오는 등)
+//   그 두 패턴에 안 걸리는 경우 "python" 이라는 글자가 화면에 그대로 남았다.
+//   (온보딩 2/5 화면 맨 위에 "python"이 덩그러니 찍힌 그 현상)
+//
+//   근본 해결은 코드블록을 <pre><code>로 하이라이팅 렌더링하는 것이지만,
+//   그건 데모에 필수가 아니라 다음으로 미룬다. 지금은 "언어 표기 잔여물"만
+//   확실히 제거해서 첫인상이 깨지지 않게 하는 선까지만 처리한다.
+function stripCodeFence(text: string): string {
+    if (!text) return "";
+    return (
+        text
+            // ```python / ```py / ```Python 등 여는 펜스 + 언어표기를 통째로 제거
+            // (```로 시작하고 뒤에 영문 언어명이 0개 이상 붙는 형태)
+            .replace(/```[a-zA-Z]*/g, "")
+            // 위에서 펜스는 지웠지만, 펜스 없이 "python" 단어만 한 줄로 남는
+            // 케이스가 있어서, 줄 전체가 언어명 하나뿐인 줄을 지운다.
+            // (^\s*  줄 시작 공백,  (python|py) 언어명,  \s*$  줄 끝 공백)
+            .replace(/^\s*(python|py)\s*$/gim, "")
+            .trim()
+    );
+}
+
 function QuizContent() {
     // useSearchParams: URL 쿼리 파라미터를 읽어오는 Hook
     // /onboarding/quiz?level=beginner -> searchParams.get("level") = "beginner"
@@ -291,11 +319,10 @@ function QuizContent() {
 
                         {/* 문제 */}
                         {/* whitespace-pre-wrap: 코드 줄바꿈 유지 */}
+                        {/* 수정: 인라인 .replace(...) 2개 → stripCodeFence() 헬퍼로 교체
+                            ('python' 잔여물이 화면에 노출되던 문제 해결) */}
                         <p className="text-base font-medium mt-4 mb-6 whitespace-pre-wrap">
-                            {currentQuestion.question
-                                .replace(/```python/g, "")
-                                .replace(/```/g, "")
-                                .trim()}
+                            {stripCodeFence(currentQuestion.question)}
                         </p>
 
                         {/* 보기 */}
