@@ -178,11 +178,20 @@ Level: {level}
 {output_schema}"""
 
 
-def build_tradeoff_gate_prompt(problem_data: dict, scenario_context: str) -> str:
-    """tradeoff_judgment 전용 게이트 프롬프트"""
+def build_tradeoff_gate_prompt(problem_data: dict, scenario_context: str, num_correct: int) -> str:
+    """
+    트레이드오프 유형 전용 프롬프트를 만든다.
+    num_correct: 이번 문제에서 정답이 몇 개여야 하는지 (2~4 중 랜덤으로 미리 정해서 넘겨받음)
+    """
     requirements = problem_data.get("requirements", "")
     concept = problem_data["concept_tag"]
     level = problem_data["level"]
+    num_distractors = 5 - num_correct  # 보기가 항상 5개니까, 오답 개수는 5에서 정답 개수를 뺀 값
+
+    # AI는 "설명 문장"보다 "예시 JSON"을 더 강하게 따라가는 경향이 있음
+    # (기존 4지선다에서 정답이 67%가 0번이었던 것도 이 이유였음)
+    # 그래서 예시 correct_indices도 num_correct 개수에 맞춰 매번 다르게 생성해서 보여줌
+    example_indices = list(range(num_correct))
 
     return f"""Generate a NEW trade-off judgment scenario that tests the same
 underlying decision-making skill as the original problem below, but with
@@ -199,21 +208,56 @@ Ground the new scenario in this real-world context: "{scenario_context}"
 [Requirements]
 1. Present a short new trade-off scenario (1-2 sentences) in the "question" field,
    followed by: "이 상황에서 반드시 고려해야 할 요소를 모두 고르세요"
-2. Provide exactly 5 options in "options": 3 genuinely correct considerations
-   for this trade-off, and 2 plausible-sounding but irrelevant distractors
-3. "correct_indices" must list the 0-based indices of the 3 correct options
+2. Provide exactly 5 options in "options": EXACTLY {num_correct} genuinely correct
+   considerations for this trade-off, and EXACTLY {num_distractors} plausible-sounding
+   but irrelevant distractors. The number of correct options MUST be exactly
+   {num_correct} — not more, not fewer. Do not default to any other count.
+3. "correct_indices" must list EXACTLY {num_correct} 0-based indices of the
+   correct options — no more, no less.
 4. Include a Korean explanation of why each correct option matters and why
    the distractors are irrelevant
 5. IMPORTANT: question, options, and explanation MUST be written in Korean
 
-[Output JSON Schema]
+[Output JSON Schema — this example has {num_correct} correct options, match that count exactly]
 {{
     "question": "question text including the new scenario (in Korean)",
     "options": ["option1", "option2", "option3", "option4", "option5"],
-    "correct_indices": [0, 1, 2],
+    "correct_indices": {example_indices},
     "explanation": "explanation (in Korean)",
     "concept": "concept tag"
 }}"""
+
+
+
+def validate_tradeoff_answer(gate_data: dict, num_correct: int) -> bool:
+    """
+    AI가 응답한 JSON이 우리가 시킨 규칙(정답 개수, 인덱스 범위 등)을 실제로 지켰는지 검사.
+    여기서 True가 나와야만 "믿고 사용자한테 내보낼 수 있는 문제"라고 판단함.
+    """
+    indices = gate_data.get("correct_indices")
+    options = gate_data.get("options")
+
+    # 타입부터 틀리면 더 볼 것도 없이 실패
+    if not isinstance(indices, list) or not isinstance(options, list):
+        return False
+
+    # 정답 개수가 우리가 지시한 개수와 정확히 같아야 함
+    if len(indices) != num_correct:
+        return False
+
+    # 같은 인덱스를 중복으로 정답이라고 우기면 안 됨 (예: [0, 0, 1])
+    if len(set(indices)) != len(indices):
+        return False
+
+    # 인덱스가 옵션 개수 범위를 벗어나면 안 됨 (예: options는 5개인데 인덱스 5, 6 등장)
+    if any(not isinstance(i, int) or i < 0 or i >= len(options) for i in indices):
+        return False
+
+    # 보기는 항상 5개여야 함 (프롬프트로 강제했지만, AI가 어길 수도 있으니 재확인)
+    if len(options) != 5:
+        return False
+
+    return True
 
 
 def build_system_prompt(problem_type: str, language: str) -> str:
@@ -240,13 +284,26 @@ Always respond with valid JSON only. Never include any text outside the JSON str
 The question, options, and explanation MUST be written in Korean."""
 
 
-def _call_claude_for_gate(system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> dict:
+def _call_claude_for_gate(
+    system_prompt: str, user_prompt: str, max_tokens: int = 1000
+) -> tuple[Optional[dict], int, int]:
+    """
+    Claude를 호출하고 (파싱된 JSON, 입력토큰, 출력토큰)을 함께 반환한다.
+    - 파싱 실패 시 첫 값은 None. 단, 토큰은 이미 소비됐으므로 그대로 반환한다.
+      → "실패한 호출의 비용"도 버리지 않아야 원가가 정확해진다 (핵심).
+    """
     message = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}]
     )
+
+    # 파싱하기 '전에' 먼저 토큰부터 확보한다.
+    # 파싱이 실패해도 API 비용은 이미 발생했기 때문.
+    input_tokens = message.usage.input_tokens
+    output_tokens = message.usage.output_tokens
+
     response_text = next(
         (block.text for block in message.content
          if isinstance(block, anthropic.types.TextBlock)),
@@ -261,7 +318,14 @@ def _call_claude_for_gate(system_prompt: str, user_prompt: str, max_tokens: int 
         response_text = response_text[:-3]
     response_text = response_text.strip()
 
-    return json.loads(response_text)
+    # 기존엔 여기서 json.JSONDecodeError를 호출부로 던졌지만,
+    # 이제는 None으로 돌려주고 토큰은 살려서 함께 반환한다.
+    try:
+        parsed = json.loads(response_text)
+    except json.JSONDecodeError:
+        parsed = None
+
+    return parsed, input_tokens, output_tokens
 
 
 @router.post("/generate")
@@ -307,16 +371,42 @@ async def generate_gate(
 
     system_prompt = build_system_prompt(problem_type, request.language)
 
-    if is_tradeoff:
-        user_prompt = build_tradeoff_gate_prompt(problem_data, scenario_context)
-        try:
-            gate_data = _call_claude_for_gate(system_prompt, user_prompt, max_tokens=1200)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="게이트 문제 생성 중 오류가 발생했습니다.")
-        # 코드가 없는 유형이라 code_verifier는 자연스럽게 스킵됨(None 반환) — 별도 검증 없음
+    # 이번 요청에서 소비한 토큰을 '재시도까지 전부' 누적한다.
+    # 실패한 시도도 돈이 나가므로, 성공분만 세면 원가가 실제보다 싸게 잡힌다(위험한 방향).
+    total_input_tokens = 0
+    total_output_tokens = 0
 
-        # 신규: 셔플은 검증 이후, DB 저장 직전에 수행
-        # (트레이드오프는 verify_code_answer 대상이 아니라서 검증 단계 없이 바로 셔플)
+    if is_tradeoff:
+        num_correct = random.randint(2, 4)
+        user_prompt = build_tradeoff_gate_prompt(problem_data, scenario_context, num_correct)
+
+        gate_data = None
+        for attempt in range(1, 4):
+            candidate, in_tok, out_tok = _call_claude_for_gate(
+                system_prompt, user_prompt, max_tokens=1200
+            )
+            total_input_tokens += in_tok      # 성공/실패 관계없이 누적
+            total_output_tokens += out_tok
+
+            if candidate is None:
+                print(f"[GATE] 트레이드오프 응답 파싱 실패 (attempt={attempt}, "
+                      f"problem_id={request.problem_id})")
+                continue
+            if validate_tradeoff_answer(candidate, num_correct):
+                gate_data = candidate
+                break
+            print(f"[GATE] 트레이드오프 정답 개수/형식 불일치 (attempt={attempt}, "
+                  f"problem_id={request.problem_id}, expected={num_correct})")
+
+        if gate_data is None:
+            # 3번 다 실패해도 '소비한 토큰'은 기록하고 넘어간다 → 원가 언더카운트 방지
+            await record_api_usage(user_id, "gate", db, total_input_tokens, total_output_tokens)
+            await db.commit()
+            raise HTTPException(
+                status_code=503,
+                detail="게이트 문제 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
+            )
+
         shuffled_options, shuffled_answers = shuffle_options(
             gate_data["options"], gate_data["correct_indices"]
         )
@@ -324,37 +414,50 @@ async def generate_gate(
         gate_data["correct_indices"] = shuffled_answers
 
     else:
+        # ⚠️ 복구: 리팩터링 때 통째로 사라졌던 일반 4지선다 유형 분기
+        #    (coding / ai_reading / ai_debugging / ai_question)
         user_prompt = build_gate_prompt(problem_data, request.language, scenario_context)
-        try:
-            gate_data = _call_claude_for_gate(system_prompt, user_prompt)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="게이트 문제 생성 중 오류가 발생했습니다.")
 
-        # 코드 실행 결과 검증은 원래 AI가 생성한 순서 기준으로 먼저 수행
+        gate_data, in_tok, out_tok = _call_claude_for_gate(system_prompt, user_prompt)
+        total_input_tokens += in_tok
+        total_output_tokens += out_tok
+
+        if gate_data is None:
+            await record_api_usage(user_id, "gate", db, total_input_tokens, total_output_tokens)
+            await db.commit()
+            raise HTTPException(
+                status_code=503,
+                detail="게이트 문제 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
+            )
+
+        # 코드 실행 결과 검증 (AI가 준 원래 순서 기준)
         verify_result = verify_code_answer(
             gate_data["question"], gate_data["options"], gate_data["answer"]
         )
         if verify_result is False:
             print(f"[GATE] 정답 불일치 감지 — 재생성 시도 (problem_id={request.problem_id})")
-            try:
-                retry_data = _call_claude_for_gate(system_prompt, user_prompt)
+            retry_data, in_tok, out_tok = _call_claude_for_gate(system_prompt, user_prompt)
+            total_input_tokens += in_tok       # 재시도 토큰도 누적
+            total_output_tokens += out_tok
+            if retry_data is not None:
                 retry_verify = verify_code_answer(
                     retry_data["question"], retry_data["options"], retry_data["answer"]
                 )
                 gate_data = retry_data
                 if retry_verify is False:
                     print(f"[GATE] 재시도도 실패 — 재시도 결과로 진행 (problem_id={request.problem_id})")
-            except json.JSONDecodeError:
+            else:
                 print(f"[GATE] 재시도 응답 파싱 실패 — 원본 유지 (problem_id={request.problem_id})")
 
-        # 신규: 검증이 끝난 뒤(정답 위치가 확정된 뒤) 셔플
+        # 검증 끝난 뒤(정답 위치 확정 후) 셔플
         shuffled_options, shuffled_answers = shuffle_options(
             gate_data["options"], [gate_data["answer"]]
         )
         gate_data["options"] = shuffled_options
         gate_data["answer"] = shuffled_answers[0]
 
-    await record_api_usage(user_id, "gate", db)
+    # 성공 경로: 누적된 실측 토큰과 함께 사용 기록
+    await record_api_usage(user_id, "gate", db, total_input_tokens, total_output_tokens)
 
     if request.is_first:
         await db.execute(
