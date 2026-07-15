@@ -183,18 +183,6 @@ Rules:
         output_tokens=message.usage.output_tokens,
     )
 
-    # Rate Limit 사용 기록 저장
-    # check_rate_limit 통과 후 실제 사용 기록을 api_usage 테이블에 저장
-    # Claude API 호출 후에 넣는 이유: API 호출이 실패하면 횟수를 차감하면 안 되기 때문
-    # Claude 응답의 실측 토큰 사용량을 기록에 같이 넘김
-    # message.usage는 anthropic SDK가 API 응답 헤더에서 파싱해주는 값이라서
-    # 따로 토큰 수를 세는 로직을 짤 필요가 없음
-    await record_api_usage(
-        user_id, "hint", db,
-        input_tokens=message.usage.input_tokens,
-        output_tokens=message.usage.output_tokens,
-    )
-
     # (기존엔 서브쿼리로 email→id를 다시 조회했는데, 이미 위에서
     #  user_id를 구했으므로 그대로 쓰면 쿼리도 하나 줄어듦)
     await db.execute(
