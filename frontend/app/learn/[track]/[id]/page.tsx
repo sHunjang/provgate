@@ -16,6 +16,7 @@ import AIDebuggingSection from "@/app/components/AIDebuggingSection";
 import AIQuestionSection from "@/app/components/AIQuestionSection";
 import DesignImplementationSection from "@/app/components/DesignImplementationSection";
 import TradeoffJudgmentSection from "@/app/components/TradeoffJudgmentSection";
+import { stripCodeFence } from "@/app/lib/stripCodeFence";
 
 // 공통 레벨 매핑 사용
 import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
@@ -598,7 +599,7 @@ export default function ProblemPage() {
                     {problem.problem_type !== "design_implementation" &&
                         problem.problem_type !== "tradeoff_judgment" && (
                             <div className="mt-4 text-[var(--text-2)] whitespace-pre-wrap leading-relaxed text-sm">
-                                {problem.description}
+                                {stripCodeFence(problem.description)}
                             </div>
                         )}
 

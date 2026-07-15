@@ -6,6 +6,8 @@ import { useAuth } from "@/app/hooks/useAuth";
 // import ThemeToggle from "@/app/components/ThemeToggle";
 import SiteNav from "@/app/components/SiteNav";
 
+import { stripCodeFence } from "@/app/lib/stripCodeFence";
+
 import { createClient } from "@/app/lib/supabase";
 
 type SimilarProblem = {
@@ -236,7 +238,7 @@ export default function FeedbackPage() {
                             <h3 className="text-base font-bold mb-2">{similarProblem.title}</h3>
 
                             <p className="text-sm text-[var(--text-2)] whitespace-pre-wrap mb-4">
-                                {similarProblem.description}
+                                {stripCodeFence(similarProblem.description)}
                             </p>
 
                             {/* 테스트 케이스 미리보기 */}

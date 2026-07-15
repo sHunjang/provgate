@@ -23,6 +23,8 @@ import { LEVEL_META, type Level } from "@/app/lib/levelMeta";
 
 import { createClient } from "@/app/lib/supabase";
 
+import { stripCodeFence } from "@/app/lib/stripCodeFence";
+
 // 온보딩 완료 결과 타입 정의
 type OnboardingResult = {
     email: string;
@@ -314,10 +316,7 @@ function ResultContent() {
 
                                             {/* 문제 내용 */}
                                             <p className="text-sm text-[var(--text)] mb-3 whitespace-pre-wrap">
-                                                {q.question
-                                                    .replace(/```python/g, "")
-                                                    .replace(/```/g, "")
-                                                    .trim()}
+                                                {stripCodeFence(q.question)}
                                             </p>
 
                                             {/* 내 답 vs 정답 */}
