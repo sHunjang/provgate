@@ -44,6 +44,7 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
         passed: boolean;
         message: string;
         token: string | null;
+        explanation?: string;
     } | null>(null);
 
     // 로딩 상태
@@ -414,10 +415,10 @@ export default function GateModal({ isOpen, problemId, language, onPass, onClose
                                     </p>
 
                                     {/* 정답 해설 */}
-                                    {gateQuestion && (
+                                    {result?.explanation && (
                                         <div className="bg-[var(--bg-3)] rounded-lg p-4 mb-4 text-left">
                                             <p className="text-xs text-[var(--text-3)] mb-1">해설</p>
-                                            <p className="text-sm text-[var(--text-2)]">{gateQuestion.explanation}</p>
+                                            <p className="text-sm text-[var(--text-2)]">{result.explanation}</p>
                                         </div>
                                     )}
 
