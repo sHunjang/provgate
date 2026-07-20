@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 
+import { Analytics } from "@vercel/analytics/next";
+
 import GlobalHeader from "@/app/components/GlobalHeader";
 
 // Noto Sans KR: next/font로 불러오면 빌드 시점에 폰트를 로컬에 저장하고
@@ -44,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <body>
                 <GlobalHeader />
                 {children}
+                <Analytics />
             </body>
         </html>
     );
