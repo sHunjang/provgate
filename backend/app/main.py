@@ -96,7 +96,7 @@ async def health_check():
 # DB 연결 테스트 엔드포인드
 # Depends(get_db): get_db()를 자동으로 실행해서 세션을 주입해줌
 # 이게 바로 의존성 주입 패턴임 - 엔드포인트가 직접 세션을 만들지 않아도 됨
-@app.get("/health/db")
+@app.api_route("/health/db", methods=["GET", "HEAD"])
 async def health_check_db(db: AsyncSession = Depends(get_db)):
 
     # text(): 순수 SQL 문자열을 SQLAlchemy가 실행할 수 있게 감싸줌
